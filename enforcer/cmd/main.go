@@ -17,9 +17,13 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/gorilla/mux"
 	"github.com/padmeio/padme/enforcer"
@@ -28,15 +32,24 @@ import (
 )
 
 func main() {
-	store := store.LocalPolicyStore{}
-	enforcer.Store = &store
+	store := &store.LocalPolicyStore{}
+	enforcer := &enforcer.Enforcer{Store: store}
 
 	flag.StringVar(&store.FilePath, "file", "/tmp/padme-policystore.json", "Policy Store file")
 	flag.Parse()
 
 	router := mux.NewRouter()
+	controllers.Init(enforcer)
 	controllers.ConfigurePolicyRoutes(router)
 
 	log.Println("Starting Enforcer server on port 8000...")
-	http.ListenAndServe(":8000", router)
+	server := &http.Server{Addr: ":8000", Handler: router}
+	go func() { log.Fatal(server.ListenAndServe()) }()
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+	<-signalChan
+
+	log.Printf("Shutdown signal received. Shutting down gracefully...")
+	server.Shutdown(context.Background())
 }

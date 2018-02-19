@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -25,15 +26,31 @@ import (
 	"github.com/padmeio/padme/policy"
 )
 
+// enforcer is the enforcer where the policies will be applied
+var currentEnforcer *enforcer.Enforcer
+
+// Init initializes the POlicy controllers with the current enforcer
+func Init(e *enforcer.Enforcer) error {
+	if currentEnforcer != nil {
+		return fmt.Errorf("Controllers already initialized with enforcer: %v", currentEnforcer)
+	}
+	currentEnforcer = e
+	return nil
+}
+
 // ConfigurePolicyRoutes configures the exposed HTTP endpoints for policy management
-func ConfigurePolicyRoutes(router *mux.Router) {
+func ConfigurePolicyRoutes(router *mux.Router) error {
+	if currentEnforcer == nil {
+		return fmt.Errorf("Enforcer has not been initialized. Please call Init()")
+	}
 	router.HandleFunc("/policies", GetPolicies).Methods("GET")
 	router.HandleFunc("/policies", SavePolicies).Methods("POST")
+	return nil
 }
 
 // GetPolicies gets the PolicyBundle configured for the enforcer
 func GetPolicies(w http.ResponseWriter, r *http.Request) {
-	bundle, err := enforcer.Store.Get()
+	bundle, err := currentEnforcer.Store.Get()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -53,5 +70,5 @@ func SavePolicies(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	enforcer.Store.Save(bundle)
+	currentEnforcer.Store.Save(bundle)
 }
