@@ -15,7 +15,7 @@ CMD_PATH := cmd
 all: build test vet lint
 
 build: $(DEPS)
-	cd $(CMD_PATH) && go build -o $(BINARY)
+	cd $(CMD_PATH) && go build -v -o $(BINARY)
 
 test:
 	go test $(TESTS)

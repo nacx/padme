@@ -16,7 +16,9 @@ limitations under the License.
 
 package enforcer
 
-import "github.com/padmeio/padme/policy"
+import (
+	"github.com/padmeio/padme/policy"
+)
 
 // AnswerAPIRequestAdapter defines how the different requests that come into PADME
 // are translated in an AnswerAPI request.

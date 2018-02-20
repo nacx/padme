@@ -33,13 +33,13 @@ import (
 
 func main() {
 	store := &store.LocalPolicyRepository{}
-	enforcer := &enforcer.Enforcer{Store: store}
+	enforcer := enforcer.NewEnforcer(store)
 
-	flag.StringVar(&store.FilePath, "file", "/tmp/padme-policystore.json", "Policy Store file")
+	flag.StringVar(&store.FilePath, "polocy-repo-file", "/tmp/padme-policystore.json", "Policy Repository file")
 	flag.Parse()
 
 	router := mux.NewRouter()
-	controllers.Init(enforcer)
+	controllers.Init(&enforcer)
 	controllers.ConfigurePolicyRoutes(router)
 
 	log.Println("Starting Enforcer server on port 8000...")

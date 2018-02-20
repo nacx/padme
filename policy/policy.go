@@ -178,9 +178,9 @@ type Operator int
 
 // my go install did not like iota
 const (
-	AND  Operator = 0
-	OR   Operator = 1
-	NONE Operator = 2
+	AND = iota
+	OR
+	NONE
 )
 
 // RuleSet := Rule | RuleSet AND RuleSet | RuleSet OR RuleSet
