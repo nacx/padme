@@ -97,7 +97,7 @@ type Plugin interface {
 	//	true - the policy was applied
 	//	false - the policy was not applied
 	//	string - a human readable error returned by the plugin. valid if false is returned.
-	Apply(id int, data []byte) (bool, string)
+	Apply(id string, data []byte) (bool, string)
 
 	// Remove removes a policy that was previously applied
 	//
@@ -108,7 +108,39 @@ type Plugin interface {
 	//	true - the policy was removed, or did not exist
 	//	false - the policy was not removed
 	//	string - a human readable error returned by the plugin. valid if false is returned.
-	Remove(id int) (bool, string)
+	Remove(id string) (bool, string)
+}
+
+// PluginAPI  is used to configure sub-components that enforce policies on behalf of the Enforcer.
+type PluginAPI interface {
+
+	// Register the specified plugin with the enforcer.  Only one
+	// plugin with a specified id may be registered with an enforcer
+	// at a time. If a plugin could not be registered it should
+	// not attempt enforcement actions.
+	//
+	// Upon registration of a new plugin, assuming the plugin
+	// is enabled, all policies are evaluated and any that control
+	// this plugin apply themselves to this plugin.
+	//
+	// Parameters:
+	//	    plugin - the plugin object used to control this plugin
+	//
+	// Returns:
+	//	    true - the plugin was successfully registered
+	//	    false - the plugin could not be registered
+	RegisterPlugin(plugin Plugin) bool
+
+	// Unregister a plugin from the enforcer. When this occurs
+	// all applied policies are removed.
+	//
+	// Parameters:
+	//	    plugin - the plugin object used to control this plugin
+	//
+	// Returns:
+	//	    true - the plugin was successfully unregistered
+	//	    false - the plugin was not successfully unregistered.
+	UnregisterPlugin(plugin Plugin) bool
 }
 
 const (
@@ -167,7 +199,7 @@ type ControllerAPI interface {
 	// Returns:
 	//	    true - registration succeeded
 	//	    false - registration failed
-	Register(id string, handler PolicyEventHandler) bool
+	RegisterHandler(id string, handler PolicyEventHandler) bool
 
 	// Unregister remoes remove the registration of a controller with this enforcer.
 	//
@@ -178,7 +210,7 @@ type ControllerAPI interface {
 	//
 	// Parameters:
 	//	    id - the id of a previously registered controller
-	Unregister(id string)
+	UnregisterHandler(id string)
 
 	// Apply a policy bundle to the enforcer.
 	//

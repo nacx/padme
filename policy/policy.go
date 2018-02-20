@@ -348,6 +348,7 @@ func (rs *RuleSet) String() string {
 		return rs.RRule.String()
 	}
 	if rs.OOperator == AND {
+		// TODO nacx: Apply policies to the plugin
 		return fmt.Sprintf("(%v AND %v)", rs.LArg.String(), rs.RArg.String())
 	}
 	return fmt.Sprintf("(%v OR %v)", rs.LArg.String(), rs.RArg.String())
@@ -707,4 +708,20 @@ func (p *PolicyBundle) Match(source *Resource, target *Resource, when time.Time,
 		allow = true
 	}
 	return valid, accept, allow
+}
+
+// PolicyPredicate defines a predicate used to filter policies in a PolicyBundle
+type PolicyPredicate func(*Policy) bool
+
+// Filter returns the policies in this bundle that satisfy the given predicate
+func (p *PolicyBundle) Filter(predicate PolicyPredicate) []*Policy {
+	var policies []*Policy
+	for _, base := range p.Policies {
+		// Just consider Policy objects (no other objects are expected)
+		p, ok := base.(*Policy)
+		if ok && predicate(p) {
+			policies = append(policies, p)
+		}
+	}
+	return policies
 }

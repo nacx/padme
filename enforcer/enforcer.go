@@ -37,19 +37,24 @@ type Enforcer struct {
 	// are stored.
 	Store store.PolicyRepository
 
-	// Controllers are the list of controllers known to this enforcer that
+	// TODO nacx: How to implement persistence for plugins and controllers
+	// in case an enforcer is restarted? (for example after recovering from a crash)
+
+	// Handlers are the list of controllers known to this enforcer that
 	// are subscribed to policy events
-	//
-	// TODO nacx: How to implement persistence here in case an enforcer is
-	// restarted? (for example after recovering from a crash)
-	Controllers map[string]PolicyEventHandler
+	Handlers map[string]PolicyEventHandler
+
+	// Plugins are the list of plugins this enforcer will delegate to when
+	// checking policies for an incoming resource
+	Plugins map[string]Plugin
 }
 
 // NewEnforcer builds a new Enforcer object with the given policy repository
 func NewEnforcer(store store.PolicyRepository) Enforcer {
 	return Enforcer{
-		Store:       store,
-		Controllers: make(map[string]PolicyEventHandler),
+		Store:    store,
+		Handlers: make(map[string]PolicyEventHandler),
+		Plugins:  make(map[string]Plugin),
 	}
 }
 
@@ -131,26 +136,96 @@ func (e *Enforcer) Apply(bundle *policy.PolicyBundle) bool {
 	return err == nil
 }
 
-// Register a given controller in this enforcer and subscribe it to policy events
-func (e *Enforcer) Register(id string, handler PolicyEventHandler) bool {
+// RegisterHandler registers a given controller in this enforcer and subscribe it to policy events
+func (e *Enforcer) RegisterHandler(id string, handler PolicyEventHandler) bool {
 	log.Printf("Registering controller %v...", id)
-	if h, ok := e.Controllers[id]; !ok {
+	if h, ok := e.Handlers[id]; !ok {
 		log.Printf("Error registering handler %v. A handler with id %v already exists: %v", handler, id, h)
 		return false
 	}
-	e.Controllers[id] = handler
+	e.Handlers[id] = handler
 	return true
 }
 
-// Unregister a controller from this enforcer and unsubscribe it from polocy events
-func (e *Enforcer) Unregister(id string) {
-	log.Printf("Unregistering controller %v...", id)
-	delete(e.Controllers, id)
+// UnregisterHandler removes a controller from this enforcer and unsubscribe it from polocy events
+func (e *Enforcer) UnregisterHandler(id string) {
+	log.Printf("Unregistering handler %v...", id)
+	delete(e.Handlers, id)
 }
 
 // notify all registered controllers a policy event for the given PolicyBundle
 func (e *Enforcer) notify(event PolicyEvent, details string, bundle *policy.PolicyBundle) {
-	for _, controller := range e.Controllers {
+	for _, controller := range e.Handlers {
 		controller.Handle(event, bundle.PolicyVersion, bundle.Description, details)
 	}
+}
+
+// Implementation of the Plugin API
+
+// pluginFilter returns a predicate that can be used to filter policies
+// that apply to the given plugin
+func pluginFilter(plugin Plugin) policy.PolicyPredicate {
+	return func(p *policy.Policy) bool {
+		if p.CContents != nil {
+			for _, content := range p.CContents {
+				if content.PluginID == plugin.Id() {
+					return true
+				}
+			}
+		}
+		return false
+	}
+}
+
+// RegisterPlugin adds the given plugin to this enforcer
+func (e *Enforcer) RegisterPlugin(plugin Plugin) bool {
+	id := plugin.Id()
+	log.Printf("Registering plugin %v...", id)
+	if p, ok := e.Plugins[id]; !ok {
+		log.Printf("Error registering plugin %v. A plugin with id %v already exists: %v", plugin, id, p)
+		return false
+	}
+
+	log.Printf("Applying policies to plugin %v...", id)
+
+	var bundle *policy.PolicyBundle
+	if bundle = e.Fetch(); bundle == nil {
+		return false
+	}
+
+	for _, p := range bundle.Filter(pluginFilter(plugin)) {
+		log.Printf("Applying policy: %v...", p.Description)
+		// TODO nacx: What ID should we use here? Policies
+		// don't have an ID field but we need one that is consistent and
+		// always the same for the same policy
+		for _, content := range p.CContents {
+			if content.PluginID == plugin.Id() {
+				plugin.Apply(p.Signature, content.Blob)
+			}
+		}
+
+	}
+
+	e.Plugins[id] = plugin
+	return true
+}
+
+// UnregisterPlugin removes the given plugin from this enforcer
+func (e *Enforcer) UnregisterPlugin(plugin Plugin) bool {
+	id := plugin.Id()
+	log.Printf("Unregistering plugin %v...", id)
+
+	if bundle := e.Fetch(); bundle != nil {
+		for _, p := range bundle.Filter(pluginFilter(plugin)) {
+			log.Printf("Removing policy: %v...", p.Description)
+			// TODO nacx: What ID should we use here? Policies
+			// don't have an ID field but we need one that is consistent and
+			// always the same for the same policy
+			plugin.Remove(p.Signature)
+		}
+	}
+
+	_, ok := e.Plugins[id]
+	delete(e.Plugins, id)
+	return ok
 }
