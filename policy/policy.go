@@ -717,7 +717,7 @@ type PolicyPredicate func(*Policy) bool
 func (p *PolicyBundle) Filter(predicate PolicyPredicate) []*Policy {
 	var policies []*Policy
 	for _, base := range p.Policies {
-		// Just consider Policy objects (no other objects are expected)
+		// TODO: How to filter PolicyLine objects?
 		p, ok := base.(*Policy)
 		if ok && predicate(p) {
 			policies = append(policies, p)

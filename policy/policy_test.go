@@ -549,3 +549,34 @@ func TestPolicySerializeAndMatch(t *testing.T) {
 		t.Errorf("allow pb should  allow %v %v %v", valid, accept, allow)
 	}
 }
+
+func TestPolicyBundleFilter(t *testing.T) {
+	var c1 = Credential{Name: "n1", Value: "v1"}
+	var forever = Duration{time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)}
+	var everywhere = Location{"everywhere"}
+
+	var tcp80Name = makeIPRule("10.0.0.1").And(makeTCPRule("80")).And(makeServiceRule("/home"))
+	var tcp443Name = makeIPRule("10.0.0.1").And(makeTCPRule("443")).And(makeServiceRule("/home"))
+
+	var tcp80Resource = Resource{Name: tcp80Name, IdentifiedBy: &c1}
+	var tcp443Resource = Resource{Name: tcp443Name, IdentifiedBy: &c1}
+
+	var tcp80Policy = makePolicy(tcp80Resource, &tcp80Resource, nil, forever, everywhere)
+	var tcp443Policy = makePolicy(tcp443Resource, &tcp443Resource, nil, forever, everywhere)
+	tcp80Policy.Description = "tcp80Policy"
+	tcp443Policy.Description = "tcp443Policy"
+
+	var allowPB = PolicyBundle{FormatVersion: 0, PolicyVersion: 0, Description: "", Policies: []PolicyBase{tcp443Policy, tcp80Policy}}
+
+	policies := allowPB.Filter(func(p *Policy) bool {
+		return p.Description == "tcp80Policy"
+	})
+
+	if len(policies) != 1 {
+		t.Error("expected one policy to match the filter criteria")
+	}
+
+	if policies[0] != tcp80Policy {
+		t.Errorf("expected policy to be %v but was: %v", tcp80Policy, policies[0])
+	}
+}
