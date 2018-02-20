@@ -138,8 +138,8 @@ func (e *Enforcer) Apply(bundle *policy.PolicyBundle) bool {
 
 // RegisterHandler registers a given controller in this enforcer and subscribe it to policy events
 func (e *Enforcer) RegisterHandler(id string, handler PolicyEventHandler) bool {
-	log.Printf("Registering controller %v...", id)
-	if h, ok := e.Handlers[id]; !ok {
+	log.Printf("Registering handler %v...", id)
+	if h, present := e.Handlers[id]; present {
 		log.Printf("Error registering handler %v. A handler with id %v already exists: %v", handler, id, h)
 		return false
 	}

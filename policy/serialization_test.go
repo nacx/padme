@@ -65,7 +65,12 @@ var tcp80PolicyLine = PolicyLine{OOperator: NONE, PPolicy: tcp80Policy}
 var tcp443PolicyLine = PolicyLine{OOperator: NONE, PPolicy: tcp443Policy}
 var tcp80or443PolicyLine = PolicyLine{OOperator: OR, LArg: &tcp80PolicyLine, RArg: &tcp443PolicyLine}
 
-var bundle = PolicyBundle{FormatVersion: 1, PolicyVersion: 2, Description: "", Policies: []PolicyBase{&tcp80or443PolicyLine, tcp80Policy}}
+var bundle = PolicyBundle{
+	FormatVersion: 1,
+	PolicyVersion: 2,
+	Description:   "Test bundle",
+	Policies:      []PolicyBase{&tcp80or443PolicyLine, tcp80Policy},
+}
 
 func TestPolicySerialization(t *testing.T) {
 	var jsonPolicy, err = ioutil.ReadFile("./test_policy.json")
