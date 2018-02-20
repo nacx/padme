@@ -17,7 +17,10 @@ package policy
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"os"
+	//	"reflect"
 	"testing"
 	"time"
 )
@@ -73,7 +76,8 @@ var bundle = PolicyBundle{
 }
 
 func TestPolicySerialization(t *testing.T) {
-	var jsonPolicy, err = ioutil.ReadFile("./test_policy.json")
+	var testFile = fmt.Sprintf("%v/src/github.com/padmeio/padme/policy/test_policy.json", os.Getenv("GOPATH"))
+	var jsonPolicy, err = ioutil.ReadFile(testFile)
 	if err != nil {
 		panic("Unable to read policy json file")
 	}
@@ -90,6 +94,10 @@ func TestPolicySerialization(t *testing.T) {
 	if err = json.Unmarshal(jsonPolicy, deserialized); err != nil {
 		t.Errorf("Unable to deserialize PolicyBundle: %v", err)
 	}
+
+	// if equal := reflect.DeepEqual(&bundle, deserialized); !equal {
+	// 	t.Error("Deserialized policy differs from original")
+	// }
 
 	// Serialize again (remove pretty formatting) and compare both versions
 	var result []byte

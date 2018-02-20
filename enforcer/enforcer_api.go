@@ -143,10 +143,14 @@ type PluginAPI interface {
 	UnregisterPlugin(plugin Plugin) bool
 }
 
+// PolicyEvent defines events that can be notified to controllers upon policy operations
+// on the enforcer
+type PolicyEvent int
+
 const (
 	// PolicyApply event is fired when a policy is applied.
 	// for example if a plugin was added/enabled, or if its start time passed.
-	PolicyApply = iota
+	PolicyApply = PolicyEvent(iota)
 
 	// PolicyApplyError event is fired when attempt to apply a policy failed.
 	PolicyApplyError
@@ -158,10 +162,6 @@ const (
 	// PolicyRemoveError event is fired when An attempt to remove a policy failed.
 	PolicyRemoveError
 )
-
-// PolicyEvent defines events that can be notified to controllers upon policy operations
-// on the enforcer
-type PolicyEvent int
 
 // PolicyEventHandler defines the interface Controllers are expected to implement to be notified
 // of events occurring on policies.

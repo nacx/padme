@@ -113,6 +113,7 @@ func makePolicy(target Resource, allowed *Resource, disallowed *Resource, timeli
 	}
 
 	var p = Policy{
+		UUID:          "46489674-5a07-40f9-9a43-7a7d08fa307e",
 		FormatVersion: 0,
 		PolicyVersion: 0,
 		Description:   "",

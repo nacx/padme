@@ -74,7 +74,7 @@ func (e *Enforcer) Answer(properties []*policy.Rule, credential *policy.Credenti
 		return false
 	}
 
-	// TODO nacx: Proper target, time and location?
+	// TODO nacx: Proper target from this enforcer data, and location from config
 	valid, accept, allow := bundle.Match(resource, nil, time.Now(), nil /*location*/)
 	return valid && (!accept || allow)
 }
@@ -114,9 +114,7 @@ func (e *Enforcer) Fetch() *policy.PolicyBundle {
 func (e *Enforcer) Apply(bundle *policy.PolicyBundle) bool {
 	log.Printf("Applying policy bundle: %v...", bundle.Description)
 
-	// TODO nacx: In order to partially update a PolicyBundle we need first to define
-	// Policy equality. We need to be able to determine if two policies are equal, and to
-	// test wether a Policy is present in a given bundle
+	// TODO nacx: Compare policies based on signature equality
 	err := e.Store.Save(bundle)
 
 	var event PolicyEvent
@@ -195,12 +193,9 @@ func (e *Enforcer) RegisterPlugin(plugin Plugin) bool {
 
 	for _, p := range bundle.Filter(pluginFilter(plugin)) {
 		log.Printf("Applying policy: %v...", p.Description)
-		// TODO nacx: What ID should we use here? Policies
-		// don't have an ID field but we need one that is consistent and
-		// always the same for the same policy
 		for _, content := range p.CContents {
 			if content.PluginID == plugin.Id() {
-				plugin.Apply(p.Signature, content.Blob)
+				plugin.Apply(p.UUID, content.Blob)
 			}
 		}
 
@@ -218,10 +213,7 @@ func (e *Enforcer) UnregisterPlugin(plugin Plugin) bool {
 	if bundle := e.Fetch(); bundle != nil {
 		for _, p := range bundle.Filter(pluginFilter(plugin)) {
 			log.Printf("Removing policy: %v...", p.Description)
-			// TODO nacx: What ID should we use here? Policies
-			// don't have an ID field but we need one that is consistent and
-			// always the same for the same policy
-			plugin.Remove(p.Signature)
+			plugin.Remove(p.UUID)
 		}
 	}
 

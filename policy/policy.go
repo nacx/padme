@@ -178,7 +178,7 @@ type Operator int
 
 // my go install did not like iota
 const (
-	AND = iota
+	AND = Operator(iota)
 	OR
 	NONE
 )
@@ -506,6 +506,7 @@ const PolicyFormatVersion uint64 = 0
 
 // Policy definition
 type Policy struct {
+	UUID          string      `json:"uuid"`
 	FormatVersion uint64      `json:"format_version"`
 	PolicyVersion uint64      `json:"policy_version"`
 	Description   string      `json:"description"`

@@ -75,21 +75,21 @@ func TestApplyAndFetch(t *testing.T) {
 
 func TestRegisterHandler(t *testing.T) {
 	handler := lastEvent{}
-	if registered := e.Register("h", &handler); !registered {
+	if registered := e.RegisterHandler("h", &handler); !registered {
 		t.Error("Expected handler to be registered")
 	}
 
-	if _, ok := e.Controllers["h"]; !ok {
+	if _, ok := e.Handlers["h"]; !ok {
 		t.Error("Expected handler to be present in the enforcer map")
 	}
 
 	// Duplicated IDs are not permitted
-	if registered := e.Register("h", &lastEvent{}); registered {
+	if registered := e.RegisterHandler("h", &lastEvent{}); registered {
 		t.Error("Duplicate IDs should not be allowed")
 	}
 
-	e.Unregister("h")
-	if _, ok := e.Controllers["h"]; ok {
+	e.UnregisterHandler("h")
+	if _, ok := e.Handlers["h"]; ok {
 		t.Error("Expected handler to not be present in the enforcer map")
 	}
 }
