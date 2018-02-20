@@ -14,14 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package store configures Enforcer persistence.
+//
+// Enforcers use a policy repository to store the policies they
+// manage, and to persist information about the existing plugins
+// and their status (enabled, disabled).
 package store
 
 import (
 	"github.com/padmeio/padme/policy"
 )
 
-// PolicyStore defines how policies are stored by this enforcer
-type PolicyStore interface {
+// PolicyRepository defines how policies are stored by this enforcer
+type PolicyRepository interface {
 
 	// Save stores the given PolicyBundle
 	Save(bundle *policy.PolicyBundle) error

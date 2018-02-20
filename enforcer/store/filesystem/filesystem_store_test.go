@@ -27,7 +27,7 @@ import (
 )
 
 var testFile = fmt.Sprintf("%v/src/github.com/padmeio/padme/policy/test_policy.json", os.Getenv("GOPATH"))
-var store = LocalPolicyStore{FilePath: "/tmp/padme-enforcer.json"}
+var store = LocalPolicyRepository{FilePath: "/tmp/padme-enforcer.json"}
 
 func loadTestPolicy(path string) *policy.PolicyBundle {
 	bytes, err := ioutil.ReadFile(path)

@@ -109,7 +109,7 @@ type Enforcer struct {
 
 	// Store configures the repository where the policies for this enforcer
 	// are stored.
-	Store store.PolicyStore
+	Store store.PolicyRepository
 }
 
 // assemble takes a set of Rules and credentials and builds a Resource object to be

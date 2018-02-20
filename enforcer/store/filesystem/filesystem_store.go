@@ -14,6 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package filesystem defines storage repositories for the local filesystem.
+//
+// Policies and information about the existing plugins are stored in plain
+// file sin the local filesystem.
 package filesystem
 
 import (
@@ -24,13 +28,13 @@ import (
 	"github.com/padmeio/padme/policy"
 )
 
-// LocalPolicyStore persists the policies in a file in the local filesystem
-type LocalPolicyStore struct {
+// LocalPolicyRepository persists the policies in a file in the local filesystem
+type LocalPolicyRepository struct {
 	FilePath string
 }
 
 // Save serializes the given PolicyBundle and stores it in the filesystem
-func (store *LocalPolicyStore) Save(bundle *policy.PolicyBundle) error {
+func (store *LocalPolicyRepository) Save(bundle *policy.PolicyBundle) error {
 	bytes, err := json.Marshal(bundle)
 	if err != nil {
 		return err
@@ -39,7 +43,7 @@ func (store *LocalPolicyStore) Save(bundle *policy.PolicyBundle) error {
 }
 
 // Get reads the current PolicyBundle from the filesystem and returns it
-func (store *LocalPolicyStore) Get() (*policy.PolicyBundle, error) {
+func (store *LocalPolicyRepository) Get() (*policy.PolicyBundle, error) {
 	bytes, err := ioutil.ReadFile(store.FilePath)
 	if err != nil {
 		if os.IsNotExist(err) {

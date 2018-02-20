@@ -32,7 +32,7 @@ import (
 )
 
 func main() {
-	store := &store.LocalPolicyStore{}
+	store := &store.LocalPolicyRepository{}
 	enforcer := &enforcer.Enforcer{Store: store}
 
 	flag.StringVar(&store.FilePath, "file", "/tmp/padme-policystore.json", "Policy Store file")

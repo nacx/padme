@@ -14,11 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package enforcer contains the PADME Enforcer definition. See relevant docs.
-//
-// This package defines the different enforcer APIs and provides interfaces to
-// convert any request into a PADME Resource so it can be evaluated against the
-// policies known to the enforcer.
 package enforcer
 
 import "github.com/padmeio/padme/policy"
