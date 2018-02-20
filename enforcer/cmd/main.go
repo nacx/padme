@@ -32,11 +32,12 @@ import (
 )
 
 func main() {
-	store := &store.LocalPolicyRepository{}
-	enforcer := enforcer.NewEnforcer(store)
-
-	flag.StringVar(&store.FilePath, "polocy-repo-file", "/tmp/padme-policystore.json", "Policy Repository file")
+	var policyRepositoryFile string
+	flag.StringVar(&policyRepositoryFile, "policy-repo-file", "/tmp/padme-policystore.json", "Policy Repository file")
 	flag.Parse()
+
+	store := &store.LocalPolicyRepository{FilePath: policyRepositoryFile}
+	enforcer := enforcer.NewEnforcer(store)
 
 	router := mux.NewRouter()
 	controllers.Init(&enforcer)
