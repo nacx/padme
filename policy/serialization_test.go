@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	//	"reflect"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -95,9 +95,9 @@ func TestPolicySerialization(t *testing.T) {
 		t.Errorf("Unable to deserialize PolicyBundle: %v", err)
 	}
 
-	// if equal := reflect.DeepEqual(&bundle, deserialized); !equal {
-	// 	t.Error("Deserialized policy differs from original")
-	// }
+	if equal := reflect.DeepEqual(&bundle, deserialized); !equal {
+		t.Error("Deserialized policy differs from original")
+	}
 
 	// Serialize again (remove pretty formatting) and compare both versions
 	var result []byte
