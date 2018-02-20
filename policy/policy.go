@@ -348,7 +348,6 @@ func (rs *RuleSet) String() string {
 		return rs.RRule.String()
 	}
 	if rs.OOperator == AND {
-		// TODO nacx: Apply policies to the plugin
 		return fmt.Sprintf("(%v AND %v)", rs.LArg.String(), rs.RArg.String())
 	}
 	return fmt.Sprintf("(%v OR %v)", rs.LArg.String(), rs.RArg.String())
