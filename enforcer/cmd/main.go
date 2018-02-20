@@ -32,8 +32,9 @@ import (
 )
 
 func main() {
-	var policyRepositoryFile string
-	flag.StringVar(&policyRepositoryFile, "policy-repo-file", "/tmp/padme-policystore.json", "Policy Repository file")
+	var policyRepositoryFile, serverAddr string
+	flag.StringVar(&policyRepositoryFile, "policy-repo", "/opt/padme-policies.json", "Policy repository file")
+	flag.StringVar(&serverAddr, "addr", ":8000", "Server address")
 	flag.Parse()
 
 	store := &store.LocalPolicyRepository{FilePath: policyRepositoryFile}
@@ -43,8 +44,8 @@ func main() {
 	controllers.Init(&enforcer)
 	controllers.ConfigurePolicyRoutes(router)
 
-	log.Println("Starting Enforcer server on port 8000...")
-	server := &http.Server{Addr: ":8000", Handler: router}
+	log.Printf("Starting Enforcer server on %v...", serverAddr)
+	server := &http.Server{Addr: serverAddr, Handler: router}
 	go func() { log.Fatal(server.ListenAndServe()) }()
 
 	signalChan := make(chan os.Signal, 1)

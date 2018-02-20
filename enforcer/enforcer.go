@@ -65,7 +65,7 @@ func (e *Enforcer) Answer(properties []*policy.Rule, credential *policy.Credenti
 
 	resource, err := assemble(properties, credential)
 	if err != nil {
-		log.Printf("error assembling the request into a Policy Resource: %v", err)
+		log.Printf("Error assembling the request into a Policy Resource: %v", err)
 		return false
 	}
 
@@ -79,7 +79,7 @@ func (e *Enforcer) Answer(properties []*policy.Rule, credential *policy.Credenti
 func assemble(properties []*policy.Rule, credential *policy.Credential) (*policy.Resource, error) {
 	resource := &policy.Resource{IdentifiedBy: credential}
 	if len(properties) == 0 {
-		return nil, fmt.Errorf("At least one property must be defined")
+		return nil, fmt.Errorf("at least one property must be defined")
 	}
 	ruleset := &policy.RuleSet{OOperator: policy.NONE, RRule: properties[0]}
 	// TODO nacx: Test when there is just one element
@@ -96,7 +96,7 @@ func assemble(properties []*policy.Rule, credential *policy.Credential) (*policy
 func (e *Enforcer) Fetch() *policy.PolicyBundle {
 	bundle, err := e.Store.Get()
 	if err != nil {
-		log.Printf("error loading policy bundle: %v", err)
+		log.Printf("Error loading policy bundle: %v", err)
 		return nil
 	}
 	return bundle
@@ -107,7 +107,7 @@ func (e *Enforcer) Fetch() *policy.PolicyBundle {
 // If there is already a PolicyBundle, it will be updated with the
 // added or removed policies
 func (e *Enforcer) Apply(bundle *policy.PolicyBundle) bool {
-	log.Printf("applying policy bundle: %v...", bundle.Description)
+	log.Printf("Applying policy bundle: %v...", bundle.Description)
 
 	// TODO nacx: In order to partially update a PolicyBundle we need first to define
 	// Policy equality. We need to be able to determine if two policies are equal, and to
@@ -118,7 +118,7 @@ func (e *Enforcer) Apply(bundle *policy.PolicyBundle) bool {
 	var details string
 
 	if err != nil {
-		log.Printf("error applying policy bundle: %v", err)
+		log.Printf("Error applying policy bundle: %v", err)
 		event = PolicyApplyError
 		details = err.Error()
 	} else {
@@ -133,9 +133,9 @@ func (e *Enforcer) Apply(bundle *policy.PolicyBundle) bool {
 
 // Register a given controller in this enforcer and subscribe it to policy events
 func (e *Enforcer) Register(id string, handler PolicyEventHandler) bool {
-	log.Printf("registering controller %v...", id)
+	log.Printf("Registering controller %v...", id)
 	if h, ok := e.Controllers[id]; !ok {
-		log.Printf("error registering handler %v. A handler with id %v already exists: %v", handler, id, h)
+		log.Printf("Error registering handler %v. A handler with id %v already exists: %v", handler, id, h)
 		return false
 	}
 	e.Controllers[id] = handler
@@ -144,7 +144,7 @@ func (e *Enforcer) Register(id string, handler PolicyEventHandler) bool {
 
 // Unregister a controller from this enforcer and unsubscribe it from polocy events
 func (e *Enforcer) Unregister(id string) {
-	log.Printf("unregistering controller %v...", id)
+	log.Printf("Unregistering controller %v...", id)
 	delete(e.Controllers, id)
 }
 

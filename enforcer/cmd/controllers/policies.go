@@ -32,7 +32,7 @@ var currentEnforcer *enforcer.Enforcer
 // Init initializes the POlicy controllers with the current enforcer
 func Init(e *enforcer.Enforcer) error {
 	if currentEnforcer != nil {
-		return fmt.Errorf("Controllers already initialized with enforcer: %v", currentEnforcer)
+		return fmt.Errorf("controllers already initialized with enforcer: %v", currentEnforcer)
 	}
 	currentEnforcer = e
 	return nil
@@ -41,7 +41,7 @@ func Init(e *enforcer.Enforcer) error {
 // ConfigurePolicyRoutes configures the exposed HTTP endpoints for policy management
 func ConfigurePolicyRoutes(router *mux.Router) error {
 	if currentEnforcer == nil {
-		return fmt.Errorf("Enforcer has not been initialized. Please call Init()")
+		return fmt.Errorf("enforcer has not been initialized. Please call Init()")
 	}
 	router.HandleFunc("/policies", GetPolicies).Methods("GET")
 	router.HandleFunc("/policies", SavePolicies).Methods("POST")
