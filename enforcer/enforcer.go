@@ -179,7 +179,7 @@ func pluginFilter(plugin Plugin) policy.PolicyPredicate {
 func (e *Enforcer) RegisterPlugin(plugin Plugin) bool {
 	id := plugin.Id()
 	log.Printf("Registering plugin %v...", id)
-	if p, ok := e.Plugins[id]; !ok {
+	if p, registered := e.Plugins[id]; registered {
 		log.Printf("Error registering plugin %v. A plugin with id %v already exists: %v", plugin, id, p)
 		return false
 	}

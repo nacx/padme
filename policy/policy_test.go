@@ -567,17 +567,18 @@ func TestPolicyBundleFilter(t *testing.T) {
 	tcp80Policy.Description = "tcp80Policy"
 	tcp443Policy.Description = "tcp443Policy"
 
-	var allowPB = PolicyBundle{FormatVersion: 0, PolicyVersion: 0, Description: "", Policies: []PolicyBase{tcp443Policy, tcp80Policy}}
+	var tcp80PolicyLine = PolicyLine{OOperator: NONE, PPolicy: tcp80Policy}
+	var tcp443PolicyLine = PolicyLine{OOperator: NONE, PPolicy: tcp443Policy}
+
+	var policyLine = PolicyLine{OOperator: OR, LArg: &tcp80PolicyLine, RArg: &tcp443PolicyLine}
+
+	var allowPB = PolicyBundle{FormatVersion: 0, PolicyVersion: 0, Description: "", Policies: []PolicyBase{tcp443Policy, tcp80Policy, &policyLine}}
 
 	policies := allowPB.Filter(func(p *Policy) bool {
 		return p.Description == "tcp80Policy"
 	})
 
-	if len(policies) != 1 {
-		t.Error("expected one policy to match the filter criteria")
-	}
-
-	if policies[0] != tcp80Policy {
-		t.Errorf("expected policy to be %v but was: %v", tcp80Policy, policies[0])
+	if len(policies) != 2 {
+		t.Errorf("expected one policy to match the filter criteria but found: %v", len(policies))
 	}
 }

@@ -649,6 +649,23 @@ func (p *PolicyLine) String() string {
 	}
 }
 
+// FilterPolicies filters the policies in the current PolicyLine that satisfy the given predicate
+func (p *PolicyLine) FilterPolicies(predicate PolicyPredicate) []*Policy {
+	var policies []*Policy
+
+	if p.PPolicy != nil && predicate(p.PPolicy) {
+		policies = append(policies, p.PPolicy)
+	}
+	if p.LArg != nil {
+		policies = append(policies, p.LArg.FilterPolicies(predicate)...)
+	}
+	if p.RArg != nil {
+		policies = append(policies, p.RArg.FilterPolicies(predicate)...)
+	}
+
+	return policies
+}
+
 // PolicyBundleFormatVersion is the version of the Policy Bundle schema
 const PolicyBundleFormatVersion uint64 = 0
 
@@ -714,13 +731,17 @@ func (p *PolicyBundle) Match(source *Resource, target *Resource, when time.Time,
 type PolicyPredicate func(*Policy) bool
 
 // Filter returns the policies in this bundle that satisfy the given predicate
+//
+// When the bundle contains PolicyLine objects, filtering will traverse the PolicyLine
+// structure and return all its policies that match the given predicate.
 func (p *PolicyBundle) Filter(predicate PolicyPredicate) []*Policy {
 	var policies []*Policy
 	for _, base := range p.Policies {
-		// TODO: How to filter PolicyLine objects?
-		p, ok := base.(*Policy)
-		if ok && predicate(p) {
-			policies = append(policies, p)
+		if bp, ok := base.(*Policy); ok && predicate(bp) {
+			policies = append(policies, bp)
+		}
+		if bl, ok := base.(*PolicyLine); ok {
+			policies = append(policies, bl.FilterPolicies(predicate)...)
 		}
 	}
 	return policies
