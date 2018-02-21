@@ -737,11 +737,13 @@ type PolicyPredicate func(*Policy) bool
 func (p *PolicyBundle) Filter(predicate PolicyPredicate) []*Policy {
 	var policies []*Policy
 	for _, base := range p.Policies {
-		if bp, ok := base.(*Policy); ok && predicate(bp) {
-			policies = append(policies, bp)
-		}
-		if bl, ok := base.(*PolicyLine); ok {
-			policies = append(policies, bl.FilterPolicies(predicate)...)
+		switch pb := base.(type) {
+		case *Policy:
+			if predicate(pb) {
+				policies = append(policies, pb)
+			}
+		case *PolicyLine:
+			policies = append(policies, pb.FilterPolicies(predicate)...)
 		}
 	}
 	return policies

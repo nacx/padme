@@ -84,8 +84,8 @@ type RequestAnswerAPI interface {
 // By default specific plugins are disabled.
 type Plugin interface {
 
-	// Id returns the unique id of this plugin in the zone
-	Id() string
+	// ID returns the unique id of this plugin in the zone
+	ID() string
 
 	// Apply appies the policy information provided by a policy
 	//

@@ -166,7 +166,7 @@ func pluginFilter(plugin Plugin) policy.PolicyPredicate {
 	return func(p *policy.Policy) bool {
 		if p.CContents != nil {
 			for _, content := range p.CContents {
-				if content.PluginID == plugin.Id() {
+				if content.PluginID == plugin.ID() {
 					return true
 				}
 			}
@@ -177,7 +177,7 @@ func pluginFilter(plugin Plugin) policy.PolicyPredicate {
 
 // RegisterPlugin adds the given plugin to this enforcer
 func (e *Enforcer) RegisterPlugin(plugin Plugin) bool {
-	id := plugin.Id()
+	id := plugin.ID()
 	log.Printf("Registering plugin %v...", id)
 	if p, registered := e.Plugins[id]; registered {
 		log.Printf("Error registering plugin %v. A plugin with id %v already exists: %v", plugin, id, p)
@@ -194,7 +194,7 @@ func (e *Enforcer) RegisterPlugin(plugin Plugin) bool {
 	for _, p := range bundle.Filter(pluginFilter(plugin)) {
 		log.Printf("Applying policy: %v...", p.Description)
 		for _, content := range p.CContents {
-			if content.PluginID == plugin.Id() {
+			if content.PluginID == plugin.ID() {
 				plugin.Apply(p.UUID, content.Blob)
 			}
 		}
@@ -207,7 +207,7 @@ func (e *Enforcer) RegisterPlugin(plugin Plugin) bool {
 
 // UnregisterPlugin removes the given plugin from this enforcer
 func (e *Enforcer) UnregisterPlugin(plugin Plugin) bool {
-	id := plugin.Id()
+	id := plugin.ID()
 	log.Printf("Unregistering plugin %v...", id)
 
 	if bundle := e.Fetch(); bundle != nil {

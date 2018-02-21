@@ -46,7 +46,7 @@ type testPlugin struct {
 	appliedPolicies int
 }
 
-func (p *testPlugin) Id() string {
+func (p *testPlugin) ID() string {
 	return p.id
 }
 
