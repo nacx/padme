@@ -30,6 +30,14 @@ import (
 	"github.com/padmeio/padme/policy"
 )
 
+// loaddedPlugin holds the information of a plugin that has been loaded by this enforcer,
+// such as the enabled flag, plugin-specific configuration that needs to be known by the
+// enforcer, etc.
+type loadedPlugin struct {
+	Plugin
+	enabled bool
+}
+
 // Enforcer is the main implementation of a PADME Enforcer.
 type Enforcer struct {
 
@@ -44,17 +52,17 @@ type Enforcer struct {
 	// are subscribed to policy events
 	Handlers map[string]PolicyEventHandler
 
-	// Plugins are the list of plugins this enforcer will delegate to when
+	// RegisteredPlugins are the list of plugins this enforcer will delegate to when
 	// checking policies for an incoming resource
-	Plugins map[string]Plugin
+	RegisteredPlugins map[string]*loadedPlugin
 }
 
 // NewEnforcer builds a new Enforcer object with the given policy repository
 func NewEnforcer(store store.PolicyRepository) Enforcer {
 	return Enforcer{
-		Store:    store,
-		Handlers: make(map[string]PolicyEventHandler),
-		Plugins:  make(map[string]Plugin),
+		Store:             store,
+		Handlers:          make(map[string]PolicyEventHandler),
+		RegisteredPlugins: make(map[string]*loadedPlugin),
 	}
 }
 
@@ -108,13 +116,9 @@ func (e *Enforcer) Fetch() *policy.PolicyBundle {
 }
 
 // Apply applies the given PolicyBundle to this enforcer.
-//
-// If there is already a PolicyBundle, it will be updated with the
-// added or removed policies
 func (e *Enforcer) Apply(bundle *policy.PolicyBundle) bool {
 	log.Printf("Applying policy bundle: %v...", bundle.Description)
 
-	// TODO nacx: Compare policies based on signature equality
 	err := e.Store.Save(bundle)
 
 	var event PolicyEvent
@@ -158,6 +162,87 @@ func (e *Enforcer) notify(event PolicyEvent, details string, bundle *policy.Poli
 	}
 }
 
+// Plugins returns the IDs of all plugins registered in this enforcer.
+func (e *Enforcer) Plugins() []string {
+	plugins := make([]string, len(e.RegisteredPlugins))
+	i := 0
+	for p := range e.RegisteredPlugins {
+		plugins[i] = p
+		i++
+	}
+	return plugins
+}
+
+// Enable enables the given plugin, if not already enabled, and applies to it all policies that
+// are configured for that plugin
+func (e *Enforcer) Enable(pluginID string) bool {
+	plugin, present := e.RegisteredPlugins[pluginID]
+	if !present {
+		log.Printf("Error enabling plugin: %v. Plugin not registered", pluginID)
+		return false
+	}
+
+	if plugin.enabled {
+		log.Printf("Plugin %v is already enabled. Ignoring", pluginID)
+		return false
+	}
+
+	var bundle *policy.PolicyBundle
+	if bundle = e.Fetch(); bundle == nil {
+		log.Print("Error loading enforcer policies")
+		return false
+	}
+
+	log.Printf("Enabling plugin %v...", pluginID)
+
+	for _, p := range bundle.Filter(pluginFilter(plugin)) {
+		log.Printf("Applying policy: %v...", p.Description)
+		for _, content := range p.CContents {
+			if content.PluginID == plugin.ID() {
+				plugin.Apply(p.UUID, content.Blob)
+			}
+		}
+
+	}
+
+	plugin.enabled = true
+	return true
+}
+
+// Disable disables the given plugin, if not already enabled, and applies to it all policies that
+// are configured for that plugin
+func (e *Enforcer) Disable(pluginID string) bool {
+	plugin, present := e.RegisteredPlugins[pluginID]
+	if !present {
+		log.Printf("Error disabling plugin: %v. Plugin not registered", pluginID)
+		return false
+	}
+
+	if !plugin.enabled {
+		log.Printf("Plugin %v is already disabled. Ignoring", pluginID)
+		return false
+	}
+	log.Printf("Disabling plugin %v...", pluginID)
+
+	var bundle *policy.PolicyBundle
+	if bundle = e.Fetch(); bundle == nil {
+		log.Print("Error loading enforcer policies")
+		return false
+	}
+
+	for _, p := range bundle.Filter(pluginFilter(plugin)) {
+		for _, content := range p.CContents {
+			if content.PluginID == plugin.ID() {
+				log.Printf("Removing policy: %v...", p.Description)
+				plugin.Remove(p.UUID)
+			}
+		}
+	}
+
+	plugin.enabled = false
+	return true
+}
+
 // Implementation of the Plugin API
 
 // pluginFilter returns a predicate that can be used to filter policies
@@ -179,29 +264,14 @@ func pluginFilter(plugin Plugin) policy.PolicyPredicate {
 func (e *Enforcer) RegisterPlugin(plugin Plugin) bool {
 	id := plugin.ID()
 	log.Printf("Registering plugin %v...", id)
-	if p, registered := e.Plugins[id]; registered {
+	if p, registered := e.RegisteredPlugins[id]; registered {
 		log.Printf("Error registering plugin %v. A plugin with id %v already exists: %v", plugin, id, p)
 		return false
 	}
 
 	log.Printf("Applying policies to plugin %v...", id)
-
-	var bundle *policy.PolicyBundle
-	if bundle = e.Fetch(); bundle == nil {
-		return false
-	}
-
-	for _, p := range bundle.Filter(pluginFilter(plugin)) {
-		log.Printf("Applying policy: %v...", p.Description)
-		for _, content := range p.CContents {
-			if content.PluginID == plugin.ID() {
-				plugin.Apply(p.UUID, content.Blob)
-			}
-		}
-
-	}
-
-	e.Plugins[id] = plugin
+	e.RegisteredPlugins[id] = &loadedPlugin{plugin, false}
+	e.Enable(id)
 	return true
 }
 
@@ -210,14 +280,12 @@ func (e *Enforcer) UnregisterPlugin(plugin Plugin) bool {
 	id := plugin.ID()
 	log.Printf("Unregistering plugin %v...", id)
 
-	if bundle := e.Fetch(); bundle != nil {
-		for _, p := range bundle.Filter(pluginFilter(plugin)) {
-			log.Printf("Removing policy: %v...", p.Description)
-			plugin.Remove(p.UUID)
-		}
+	var disabled bool
+	if disabled = e.Disable(id); !disabled {
+		log.Printf("Error disabling plugin %v before unregistering", id)
 	}
 
-	_, ok := e.Plugins[id]
-	delete(e.Plugins, id)
-	return ok
+	_, unregistered := e.RegisteredPlugins[id]
+	delete(e.RegisteredPlugins, id)
+	return unregistered
 }

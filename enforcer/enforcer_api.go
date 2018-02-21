@@ -216,7 +216,7 @@ type ControllerAPI interface {
 	//
 	// Policies are specifically ordered. Thus the addition, removal, or
 	// modification of one or more policy requires a new policy bundle to
-	// be applied to the enforcer. The enforcer is responsible for
+	// be applied to the enforcer. The controller is responsible for
 	// determining which policies have been added or removed and
 	// modifying its state or the state of its plugins as necessary.
 	// If no PolicyVersions change, and no policies are added

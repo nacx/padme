@@ -27,7 +27,7 @@ import (
 
 func assertEquals(t *testing.T, actual interface{}, expected interface{}) {
 	if actual != expected {
-		t.Errorf("Expected %v but \ngot: %v", expected, actual)
+		t.Fatalf("Expected %v but \ngot: %v", expected, actual)
 	}
 }
 
@@ -35,7 +35,7 @@ func TestInvalidOperator(t *testing.T) {
 	invalid := RuleSet{OOperator: 15}
 	_, err := json.Marshal(&invalid)
 	if err == nil {
-		t.Errorf("Expected operator %v to produce an error", invalid.OOperator)
+		t.Fatalf("Expected operator %v to produce an error", invalid.OOperator)
 	}
 	jsonError, _ := err.(*json.MarshalerError)
 	assertEquals(t, jsonError.Err.Error(), "Invalid operator: '15'. Valid values are AND, OR, NONE")
@@ -45,7 +45,7 @@ func testDeserializeMissingOpertor(t *testing.T) {
 	pl := PolicyLine{}
 	err := json.Unmarshal([]byte("{}"), &pl)
 	if err == nil {
-		t.Errorf("Expected deserialization to fail when operator is missing")
+		t.Fatalf("Expected deserialization to fail when operator is missing")
 	}
 	assertEquals(t, err.Error(), "Invalid operator: ''. Valid values are AND, OR, NONE")
 }
@@ -87,23 +87,23 @@ func TestPolicySerialization(t *testing.T) {
 
 	serialized, err := json.Marshal(&bundle)
 	if err != nil {
-		t.Errorf("Unable to serialize PolicyBundle: %v", err)
+		t.Fatalf("Unable to serialize PolicyBundle: %v", err)
 	}
 
 	deserialized := &PolicyBundle{}
 	if err = json.Unmarshal(jsonPolicy, deserialized); err != nil {
-		t.Errorf("Unable to deserialize PolicyBundle: %v", err)
+		t.Fatalf("Unable to deserialize PolicyBundle: %v", err)
 	}
 
 	if equal := reflect.DeepEqual(&bundle, deserialized); !equal {
-		t.Error("Deserialized policy differs from original")
+		t.Fatal("Deserialized policy differs from original")
 	}
 
 	// Serialize again (remove pretty formatting) and compare both versions
 	var result []byte
 	result, err = json.Marshal(deserialized)
 	if err != nil {
-		t.Errorf("Unable to serialize PolicyBundle after deserialization: %v", err)
+		t.Fatalf("Unable to serialize PolicyBundle after deserialization: %v", err)
 	}
 
 	assertEquals(t, string(result), string(serialized))

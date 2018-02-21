@@ -79,18 +79,18 @@ func TestFetchOnFailure(t *testing.T) {
 	st := store.LocalPolicyRepository{FilePath: "/dev/null"}
 	invalid := NewEnforcer(&st)
 	if bundle := invalid.Fetch(); bundle != nil {
-		t.Error("Expected fetch to have failed on an invalid enforcer storage")
+		t.Fatal("Expected fetch to have failed on an invalid enforcer storage")
 	}
 }
 
 func TestApplyAndFetch(t *testing.T) {
 	e := NewEnforcer(&testStore)
 	if ok := e.Apply(bundle); !ok {
-		t.Error("Expected policy to be applied to the enforcer")
+		t.Fatal("Expected policy to be applied to the enforcer")
 	}
 
 	if retrieved := e.Fetch(); retrieved.Description != bundle.Description {
-		t.Errorf("Expected current policy to be %v but was: %v", bundle, retrieved)
+		t.Fatalf("Expected current policy to be %v but was: %v", bundle, retrieved)
 	}
 }
 
@@ -98,22 +98,46 @@ func TestRegisterHandler(t *testing.T) {
 	e := NewEnforcer(&testStore)
 	handler := lastEvent{}
 	if registered := e.RegisterHandler("h", &handler); !registered {
-		t.Error("Expected handler to be registered")
+		t.Fatal("Expected handler to be registered")
 	}
 
 	if _, ok := e.Handlers["h"]; !ok {
-		t.Error("Expected handler to be present in the enforcer map")
+		t.Fatal("Expected handler to be present in the enforcer map")
 	}
 
 	// Duplicated IDs are not permitted
 	if registered := e.RegisterHandler("h", &lastEvent{}); registered {
-		t.Error("Duplicate IDs should not be allowed")
+		t.Fatal("Duplicate IDs should not be allowed")
 	}
 
 	e.UnregisterHandler("h")
 	if _, ok := e.Handlers["h"]; ok {
-		t.Error("Expected handler to not be present in the enforcer map")
+		t.Fatal("Expected handler to not be present in the enforcer map")
 	}
+}
+
+func TestPlugins(t *testing.T) {
+	e := NewEnforcer(&testStore)
+	if l := len(e.Plugins()); l != 0 {
+		t.Fatalf("Expected plugins to be empty, but found: %v", l)
+	}
+
+	plugin := testPlugin{id: "dummy", appliedPolicies: 5}
+	e.RegisteredPlugins["dummy"] = &loadedPlugin{&plugin, true}
+
+	plugins := e.Plugins()
+	if l := len(plugins); l != 1 {
+		t.Fatalf("Expected one plugin but found: %v", l)
+	}
+	if plugins[0] != plugin.ID() {
+		t.Fatalf("Expected plugin to be: %v", plugin)
+	}
+}
+
+func TestEnable(t *testing.T) {
+}
+
+func TestDisable(t *testing.T) {
 }
 
 // Plugin API tests
@@ -126,31 +150,31 @@ func TestRegisterPlugin(t *testing.T) {
 	}))
 
 	if pluginPolicies >= totalPolicies {
-		t.Errorf("Expected to have less plugin policies (%v) than total policies (%v)",
+		t.Fatalf("Expected to have less plugin policies (%v) than total policies (%v)",
 			pluginPolicies, totalPolicies)
 	}
 
 	if ok := e.Apply(bundle); !ok {
-		t.Error("Expected policy to be applied to the enforcer")
+		t.Fatal("Expected policy to be applied to the enforcer")
 	}
 
 	plugin := testPlugin{id: "vendor_plugin", appliedPolicies: 0}
 	if registered := e.RegisterPlugin(&plugin); !registered {
-		t.Error("Expected the plugin to be registered")
+		t.Fatal("Expected the plugin to be registered")
 	}
 
 	if plugin.appliedPolicies != pluginPolicies {
-		t.Errorf("Expected %v to be applied but found: %v", pluginPolicies, plugin.appliedPolicies)
+		t.Fatalf("Expected %v to be applied but found: %v", pluginPolicies, plugin.appliedPolicies)
 	}
 
 	// Register a plugin with no policies associated
 	noPolicies := testPlugin{id: "no_policies", appliedPolicies: 0}
 	if registered := e.RegisterPlugin(&noPolicies); !registered {
-		t.Error("Expected the plugin to be registered")
+		t.Fatal("Expected the plugin to be registered")
 	}
 
 	if noPolicies.appliedPolicies > 0 {
-		t.Errorf("Expected no policies to be applied but found: %v", noPolicies.appliedPolicies)
+		t.Fatalf("Expected no policies to be applied but found: %v", noPolicies.appliedPolicies)
 	}
 }
 
@@ -162,36 +186,36 @@ func TestUnregisterPlugin(t *testing.T) {
 	}))
 
 	if pluginPolicies >= totalPolicies {
-		t.Errorf("Expected to have less plugin policies (%v) than total policies (%v)",
+		t.Fatalf("Expected to have less plugin policies (%v) than total policies (%v)",
 			pluginPolicies, totalPolicies)
 	}
 
 	if ok := e.Apply(bundle); !ok {
-		t.Error("Expected policy to be applied to the enforcer")
+		t.Fatal("Expected policy to be applied to the enforcer")
 	}
 
 	plugin := testPlugin{id: "vendor_plugin", appliedPolicies: pluginPolicies}
-	e.Plugins["vendor_plugin"] = &plugin
+	e.RegisteredPlugins["vendor_plugin"] = &loadedPlugin{&plugin, true}
 	if unregistered := e.UnregisterPlugin(&plugin); !unregistered {
-		t.Error("Expected the plugin to be unregistered")
+		t.Fatal("Expected the plugin to be unregistered")
 	}
 
 	if plugin.appliedPolicies > 0 {
-		t.Errorf("Expected plugin to have no policies but found: %v", plugin.appliedPolicies)
+		t.Fatalf("Expected plugin to have no policies but found: %v", plugin.appliedPolicies)
 	}
 
 	// Unregister a plugin with no policies associated
 	noPolicies := testPlugin{id: "no_policies", appliedPolicies: 5}
-	e.Plugins["no_policies"] = &noPolicies
+	e.RegisteredPlugins["no_policies"] = &loadedPlugin{&noPolicies, true}
 	if unregistered := e.UnregisterPlugin(&noPolicies); !unregistered {
-		t.Error("Expected the plugin to be unregistered")
+		t.Fatal("Expected the plugin to be unregistered")
 	}
 
 	if noPolicies.appliedPolicies != 5 {
-		t.Errorf("Expected plugin policies to be unchanged but %v were removed", 5-noPolicies.appliedPolicies)
+		t.Fatalf("Expected plugin policies to be unchanged but %v were removed", 5-noPolicies.appliedPolicies)
 	}
 
 	if unregistered := e.UnregisterPlugin(&testPlugin{id: "unexisting"}); unregistered {
-		t.Error("Expected the plugin to not be unregistered")
+		t.Fatal("Expected the plugin to not be unregistered")
 	}
 }
