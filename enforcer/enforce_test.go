@@ -27,15 +27,17 @@ import (
 	"github.com/padmeio/padme/policy"
 )
 
-var testFile = fmt.Sprintf("%v/src/github.com/padmeio/padme/policy/test_policy.json", os.Getenv("GOPATH"))
-var bundle = loadTestPolicy(testFile)
-var testStore = store.LocalPolicyRepository{FilePath: "/tmp/padme-enforcer.json"}
+var (
+	testFile  = fmt.Sprintf("%v/src/github.com/padmeio/padme/policy/test_policy.json", os.Getenv("GOPATH"))
+	bundle    = loadTestPolicy(testFile)
+	testStore = store.LocalPolicyRepository{FilePath: "/tmp/padme-enforcer.json"}
 
-// List of all policies and all policies that define plugin data
-var totalPolicies = len(bundle.Filter(func(p *policy.Policy) bool { return true }))
-var pluginPolicies = len(bundle.Filter(func(p *policy.Policy) bool {
-	return p.CContents != nil && len(p.CContents) > 0
-}))
+	// List of all policies and all policies that define plugin data
+	totalPolicies  = len(bundle.Filter(func(p *policy.Policy) bool { return true }))
+	pluginPolicies = len(bundle.Filter(func(p *policy.Policy) bool {
+		return p.CContents != nil && len(p.CContents) > 0
+	}))
+)
 
 // lastEvent is a PolicyEventHandler that keeps track of the last fired event
 type lastEvent struct {
