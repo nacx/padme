@@ -31,6 +31,12 @@ var testFile = fmt.Sprintf("%v/src/github.com/padmeio/padme/policy/test_policy.j
 var bundle = loadTestPolicy(testFile)
 var testStore = store.LocalPolicyRepository{FilePath: "/tmp/padme-enforcer.json"}
 
+// List of all policies and all policies that define plugin data
+var totalPolicies = len(bundle.Filter(func(p *policy.Policy) bool { return true }))
+var pluginPolicies = len(bundle.Filter(func(p *policy.Policy) bool {
+	return p.CContents != nil && len(p.CContents) > 0
+}))
+
 // lastEvent is a PolicyEventHandler that keeps track of the last fired event
 type lastEvent struct {
 	event PolicyEvent
@@ -134,26 +140,118 @@ func TestPlugins(t *testing.T) {
 	}
 }
 
-func TestEnable(t *testing.T) {
+func TestEnableNonRegisteredPlugin(t *testing.T) {
+	e := NewEnforcer(&testStore)
+	if enabled := e.Enable("unexisting"); enabled {
+		t.Fatal("Plugin is not registered but has been enabled")
+	}
 }
 
-func TestDisable(t *testing.T) {
+func TestEnableAlreadyEnabledPlugin(t *testing.T) {
+	e := NewEnforcer(&testStore)
+	plugin := testPlugin{id: "test_plugin", appliedPolicies: 0}
+	e.RegisteredPlugins[plugin.ID()] = &loadedPlugin{&plugin, true}
+
+	if enabled := e.Enable(plugin.ID()); enabled {
+		t.Fatal("Plugin has been enabled despite being already enabled")
+	}
+}
+
+func testEnablePlugin(t *testing.T) {
+	e := NewEnforcer(&testStore)
+	if ok := e.Apply(bundle); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
+	plugin := testPlugin{id: "vendor_plugin", appliedPolicies: 0}
+	e.RegisteredPlugins[plugin.ID()] = &loadedPlugin{&plugin, false}
+
+	if enabled := e.Enable(plugin.ID()); !enabled {
+		t.Fatal("Expected the plugin to be enabled")
+	}
+
+	if plugin.appliedPolicies != pluginPolicies {
+		t.Fatalf("Expected %v to be applied after enabling but found: %v", pluginPolicies, plugin.appliedPolicies)
+	}
+}
+
+func testEnablePluginWithoutPolicies(t *testing.T) {
+	e := NewEnforcer(&testStore)
+	if ok := e.Apply(bundle); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
+	plugin := testPlugin{id: "no_policies", appliedPolicies: 0}
+	e.RegisteredPlugins[plugin.ID()] = &loadedPlugin{&plugin, false}
+
+	if enabled := e.Enable(plugin.ID()); !enabled {
+		t.Fatal("Expected the plugin to be enabled")
+	}
+
+	if plugin.appliedPolicies != 0 {
+		t.Fatalf("Expected no policies to be applied after enabling but found: %v", plugin.appliedPolicies)
+	}
+}
+
+func TestDisableNonRegisteredPlugin(t *testing.T) {
+	e := NewEnforcer(&testStore)
+	if disabled := e.Disable("unexisting"); disabled {
+		t.Fatal("Plugin is not registered but has been disabled")
+	}
+}
+
+func TestDisableAlreadyDisabledPlugin(t *testing.T) {
+	e := NewEnforcer(&testStore)
+	plugin := testPlugin{id: "test_plugin", appliedPolicies: 0}
+	e.RegisteredPlugins[plugin.ID()] = &loadedPlugin{&plugin, false}
+
+	if disabled := e.Disable(plugin.ID()); disabled {
+		t.Fatal("Plugin has been disabled despite being already disabled")
+	}
+}
+
+func testDisablePlugin(t *testing.T) {
+	e := NewEnforcer(&testStore)
+	if ok := e.Apply(bundle); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
+	plugin := testPlugin{id: "vendor_plugin", appliedPolicies: pluginPolicies}
+	e.RegisteredPlugins[plugin.ID()] = &loadedPlugin{&plugin, true}
+
+	if disabled := e.Disable(plugin.ID()); !disabled {
+		t.Fatal("Expected the plugin to be disabled")
+	}
+
+	if plugin.appliedPolicies != 0 {
+		t.Fatalf("Expected %v to be removed after disabling but only %v were removed",
+			pluginPolicies, pluginPolicies-plugin.appliedPolicies)
+	}
+}
+
+func testDisablePluginWithoutPolicies(t *testing.T) {
+	e := NewEnforcer(&testStore)
+	if ok := e.Apply(bundle); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
+	plugin := testPlugin{id: "no_policies", appliedPolicies: 5}
+	e.RegisteredPlugins[plugin.ID()] = &loadedPlugin{&plugin, true}
+
+	if disabled := e.Disable(plugin.ID()); !disabled {
+		t.Fatal("Expected the plugin to be disabled")
+	}
+
+	if plugin.appliedPolicies != 5 {
+		t.Fatalf("Expected no policies to be removed after disabling but %v were removed",
+			5-plugin.appliedPolicies)
+	}
 }
 
 // Plugin API tests
 
 func TestRegisterPlugin(t *testing.T) {
 	e := NewEnforcer(&testStore)
-	totalPolicies := len(bundle.Filter(func(p *policy.Policy) bool { return true }))
-	pluginPolicies := len(bundle.Filter(func(p *policy.Policy) bool {
-		return p.CContents != nil && len(p.CContents) > 0
-	}))
-
-	if pluginPolicies >= totalPolicies {
-		t.Fatalf("Expected to have less plugin policies (%v) than total policies (%v)",
-			pluginPolicies, totalPolicies)
-	}
-
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
 	}
@@ -166,8 +264,14 @@ func TestRegisterPlugin(t *testing.T) {
 	if plugin.appliedPolicies != pluginPolicies {
 		t.Fatalf("Expected %v to be applied but found: %v", pluginPolicies, plugin.appliedPolicies)
 	}
+}
 
-	// Register a plugin with no policies associated
+func TestRegisterPluginWithoutPolicies(t *testing.T) {
+	e := NewEnforcer(&testStore)
+	if ok := e.Apply(bundle); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
 	noPolicies := testPlugin{id: "no_policies", appliedPolicies: 0}
 	if registered := e.RegisterPlugin(&noPolicies); !registered {
 		t.Fatal("Expected the plugin to be registered")
@@ -180,16 +284,6 @@ func TestRegisterPlugin(t *testing.T) {
 
 func TestUnregisterPlugin(t *testing.T) {
 	e := NewEnforcer(&testStore)
-	totalPolicies := len(bundle.Filter(func(p *policy.Policy) bool { return true }))
-	pluginPolicies := len(bundle.Filter(func(p *policy.Policy) bool {
-		return p.CContents != nil && len(p.CContents) > 0
-	}))
-
-	if pluginPolicies >= totalPolicies {
-		t.Fatalf("Expected to have less plugin policies (%v) than total policies (%v)",
-			pluginPolicies, totalPolicies)
-	}
-
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
 	}
@@ -203,8 +297,14 @@ func TestUnregisterPlugin(t *testing.T) {
 	if plugin.appliedPolicies > 0 {
 		t.Fatalf("Expected plugin to have no policies but found: %v", plugin.appliedPolicies)
 	}
+}
 
-	// Unregister a plugin with no policies associated
+func TestUnregisterPluginWithoutPolicies(t *testing.T) {
+	e := NewEnforcer(&testStore)
+	if ok := e.Apply(bundle); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
 	noPolicies := testPlugin{id: "no_policies", appliedPolicies: 5}
 	e.RegisteredPlugins["no_policies"] = &loadedPlugin{&noPolicies, true}
 	if unregistered := e.UnregisterPlugin(&noPolicies); !unregistered {
@@ -214,7 +314,10 @@ func TestUnregisterPlugin(t *testing.T) {
 	if noPolicies.appliedPolicies != 5 {
 		t.Fatalf("Expected plugin policies to be unchanged but %v were removed", 5-noPolicies.appliedPolicies)
 	}
+}
 
+func TestUnregisterUnexistingPlugin(t *testing.T) {
+	e := NewEnforcer(&testStore)
 	if unregistered := e.UnregisterPlugin(&testPlugin{id: "unexisting"}); unregistered {
 		t.Fatal("Expected the plugin to not be unregistered")
 	}
