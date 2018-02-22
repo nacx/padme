@@ -266,6 +266,20 @@ func TestRegisterPlugin(t *testing.T) {
 	}
 }
 
+func TestRegisterDuplicatedPlugin(t *testing.T) {
+	e := NewEnforcer(&testStore)
+	if ok := e.Apply(bundle); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
+	plugin := testPlugin{id: "vendor_plugin", appliedPolicies: 0}
+	e.RegisteredPlugins["vendor_plugin"] = &loadedPlugin{&plugin, true}
+
+	if registered := e.RegisterPlugin(&plugin); registered {
+		t.Fatal("Expected the duplicated plugin to not be registered")
+	}
+}
+
 func TestRegisterPluginWithoutPolicies(t *testing.T) {
 	e := NewEnforcer(&testStore)
 	if ok := e.Apply(bundle); !ok {
