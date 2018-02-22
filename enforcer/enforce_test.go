@@ -40,10 +40,12 @@ var pluginPolicies = len(bundle.Filter(func(p *policy.Policy) bool {
 // lastEvent is a PolicyEventHandler that keeps track of the last fired event
 type lastEvent struct {
 	event PolicyEvent
+	total int
 }
 
 func (h *lastEvent) Handle(event PolicyEvent, policyVersion uint64, policyDescription string, notes string) {
 	h.event = event
+	h.total++
 }
 
 // testPlugin is a Plugin that keeps track of the number of policies pushed to the plugin
@@ -97,6 +99,42 @@ func TestApplyAndFetch(t *testing.T) {
 
 	if retrieved := e.Fetch(); retrieved.Description != bundle.Description {
 		t.Fatalf("Expected current policy to be %v but was: %v", bundle, retrieved)
+	}
+}
+
+func TestApplyNotifiesHandlers(t *testing.T) {
+	e := NewEnforcer(&testStore)
+	h := &lastEvent{}
+	e.RegisterHandler("h", h)
+
+	if ok := e.Apply(bundle); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
+	if h.total != 1 {
+		t.Fatalf("Expected one captured event but found: %v", h.total)
+	}
+	if h.event != PolicyApply {
+		t.Fatalf("Expected a PolicyApply event but found: %v", h.event)
+	}
+}
+
+func TestApplyFailureNotifiesHandlers(t *testing.T) {
+	// invalidStore to force a failure in Apply()
+	invalidStore := store.LocalPolicyRepository{FilePath: "/unexisting/path.json"}
+	e := NewEnforcer(&invalidStore)
+	h := &lastEvent{}
+	e.RegisterHandler("h", h)
+
+	if ok := e.Apply(bundle); ok {
+		t.Fatal("Expected policy not to be applied to the enforcer")
+	}
+
+	if h.total != 1 {
+		t.Fatalf("Expected one captured event but found: %v", h.total)
+	}
+	if h.event != PolicyApplyError {
+		t.Fatalf("Expected a PolicyApplyError event but found: %v", h.event)
 	}
 }
 
@@ -157,7 +195,7 @@ func TestEnableAlreadyEnabledPlugin(t *testing.T) {
 	}
 }
 
-func testEnablePlugin(t *testing.T) {
+func TestEnablePlugin(t *testing.T) {
 	e := NewEnforcer(&testStore)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
@@ -175,7 +213,7 @@ func testEnablePlugin(t *testing.T) {
 	}
 }
 
-func testEnablePluginWithoutPolicies(t *testing.T) {
+func TestEnablePluginWhenNoPluginSpecificPolicies(t *testing.T) {
 	e := NewEnforcer(&testStore)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
@@ -190,6 +228,19 @@ func testEnablePluginWithoutPolicies(t *testing.T) {
 
 	if plugin.appliedPolicies != 0 {
 		t.Fatalf("Expected no policies to be applied after enabling but found: %v", plugin.appliedPolicies)
+	}
+}
+
+func TestEnablePluginNoPoliciesInEnforcer(t *testing.T) {
+	// invalidStore to force a failure in Fetch()
+	invalidStore := store.LocalPolicyRepository{FilePath: "/dev/null"}
+	e := NewEnforcer(&invalidStore)
+
+	plugin := testPlugin{id: "no_policies", appliedPolicies: 5}
+	e.RegisteredPlugins[plugin.ID()] = &loadedPlugin{&plugin, false}
+
+	if enabled := e.Enable(plugin.ID()); enabled {
+		t.Fatal("Expected the plugin to not be enabled if policies could not be loaded")
 	}
 }
 
@@ -210,7 +261,7 @@ func TestDisableAlreadyDisabledPlugin(t *testing.T) {
 	}
 }
 
-func testDisablePlugin(t *testing.T) {
+func TestDisablePlugin(t *testing.T) {
 	e := NewEnforcer(&testStore)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
@@ -229,7 +280,7 @@ func testDisablePlugin(t *testing.T) {
 	}
 }
 
-func testDisablePluginWithoutPolicies(t *testing.T) {
+func TestDisablePluginWhenNoPluginSpecificPolicies(t *testing.T) {
 	e := NewEnforcer(&testStore)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
@@ -245,6 +296,19 @@ func testDisablePluginWithoutPolicies(t *testing.T) {
 	if plugin.appliedPolicies != 5 {
 		t.Fatalf("Expected no policies to be removed after disabling but %v were removed",
 			5-plugin.appliedPolicies)
+	}
+}
+
+func TestDisablePluginNoPoliciesInEnforcer(t *testing.T) {
+	// invalidStore to force a failure in Fetch()
+	invalidStore := store.LocalPolicyRepository{FilePath: "/dev/null"}
+	e := NewEnforcer(&invalidStore)
+
+	plugin := testPlugin{id: "no_policies", appliedPolicies: 5}
+	e.RegisteredPlugins[plugin.ID()] = &loadedPlugin{&plugin, true}
+
+	if disabled := e.Disable(plugin.ID()); disabled {
+		t.Fatal("Expected the plugin to not be disabled if policies could not be loaded")
 	}
 }
 

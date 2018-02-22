@@ -222,13 +222,14 @@ func (e *Enforcer) Disable(pluginID string) bool {
 		log.Printf("Plugin %v is already disabled. Ignoring", pluginID)
 		return false
 	}
-	log.Printf("Disabling plugin %v...", pluginID)
 
 	var bundle *policy.PolicyBundle
 	if bundle = e.Fetch(); bundle == nil {
 		log.Print("Error loading enforcer policies")
 		return false
 	}
+
+	log.Printf("Disabling plugin %v...", pluginID)
 
 	for _, p := range bundle.Filter(pluginFilter(plugin)) {
 		for _, content := range p.CContents {
