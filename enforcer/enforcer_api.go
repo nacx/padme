@@ -22,6 +22,7 @@ limitations under the License.
 package enforcer
 
 import (
+	"github.com/padmeio/padme/enforcer/plugins"
 	"github.com/padmeio/padme/policy"
 )
 
@@ -60,57 +61,6 @@ type RequestAnswerAPI interface {
 	Answer(properties []*policy.Rule, credential *policy.Credential) bool
 }
 
-// Plugin defines the Plugin interface is implemented by or on behalf of an external
-// Policy enforcement component. There can only be one
-// plugin with a given id on any given enforcer, and this id must
-// be consistent throughout the zone.
-//
-// Policies that have a non-empty CContents apply use this interface
-// to configure the specified plugin.
-//
-// As there is no guarantee that the sub-component understands time.
-// A policy is not applied to the plugin until the start time in
-// its Duration field. It is unapplied at the end time.  This
-// must be taken into account when testing policies.
-//
-// Registered, Unregistered, Enabled, Disabled.
-//
-// Plugins register themselves with the enforcer when they
-// are ready to operate and unregister themselves when
-// they are no longer able or willing to operate. Additionally
-// controllers can instruct enforcers to ignore certain
-// plugins by disabling them.
-//
-// By default specific plugins are disabled.
-type Plugin interface {
-
-	// ID returns the unique id of this plugin in the zone
-	ID() string
-
-	// Apply appies the policy information provided by a policy
-	//
-	// Parameters:
-	//	id - an identified asserted by the enforcer through which subsequent operations regarding this policy.
-	//	data - the Blob specified in the Contents part of the Policy
-	//
-	// return (bool, error)
-	//	true - the policy was applied
-	//	false - the policy was not applied
-	//	string - a human readable error returned by the plugin. valid if false is returned.
-	Apply(id string, data []byte) (bool, string)
-
-	// Remove removes a policy that was previously applied
-	//
-	// Parameters:
-	//	id - the id asserted when the policy was applied
-	//
-	// return (bool, error)
-	//	true - the policy was removed, or did not exist
-	//	false - the policy was not removed
-	//	string - a human readable error returned by the plugin. valid if false is returned.
-	Remove(id string) (bool, string)
-}
-
 // PluginAPI  is used to configure sub-components that enforce policies on behalf of the Enforcer.
 type PluginAPI interface {
 
@@ -129,7 +79,7 @@ type PluginAPI interface {
 	// Returns:
 	//	    true - the plugin was successfully registered
 	//	    false - the plugin could not be registered
-	RegisterPlugin(plugin Plugin) bool
+	RegisterPlugin(plugin plugins.Plugin) bool
 
 	// Unregister a plugin from the enforcer. When this occurs
 	// all applied policies are removed.
@@ -140,7 +90,7 @@ type PluginAPI interface {
 	// Returns:
 	//	    true - the plugin was successfully unregistered
 	//	    false - the plugin was not successfully unregistered.
-	UnregisterPlugin(plugin Plugin) bool
+	UnregisterPlugin(plugin plugins.Plugin) bool
 }
 
 // PolicyEvent defines events that can be notified to controllers upon policy operations

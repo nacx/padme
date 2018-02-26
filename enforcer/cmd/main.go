@@ -33,7 +33,7 @@ import (
 
 func main() {
 	var policyRepositoryFile, serverAddr string
-	flag.StringVar(&policyRepositoryFile, "policy-repo", "/opt/padme-policies.json", "Policy repository file")
+	flag.StringVar(&policyRepositoryFile, "policy-repo", "/opt/padme/padme-policies.json", "Policy repository file")
 	flag.StringVar(&serverAddr, "addr", ":8000", "Server address")
 	flag.Parse()
 

@@ -37,10 +37,13 @@ uninstall:
 	go clean -i $(PKGS)
 	rm -f $(GOPATH)/bin/$(BINARY)
 
+dummy-plugin:
+	cd plugins/dummy && go build -buildmode=plugin -o dummy.so
+
 $(GOLINT):
 	go get -v github.com/golang/lint/golint
 
 $(DEPS):
 	go get -v $(subst $(GOPATH)/src/,,$@)
 
-.PHONY: all build test lint vet install clean uninstall
+.PHONY: all build test lint vet install clean uninstall dummy-plugin

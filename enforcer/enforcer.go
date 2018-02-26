@@ -26,6 +26,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/padmeio/padme/enforcer/plugins"
 	"github.com/padmeio/padme/enforcer/store"
 	"github.com/padmeio/padme/policy"
 )
@@ -34,7 +35,7 @@ import (
 // such as the enabled flag, plugin-specific configuration that needs to be known by the
 // enforcer, etc.
 type loadedPlugin struct {
-	Plugin
+	plugins.Plugin
 	enabled bool
 }
 
@@ -248,7 +249,7 @@ func (e *Enforcer) Disable(pluginID string) bool {
 
 // pluginFilter returns a predicate that can be used to filter policies
 // that apply to the given plugin
-func pluginFilter(plugin Plugin) policy.PolicyPredicate {
+func pluginFilter(plugin plugins.Plugin) policy.PolicyPredicate {
 	return func(p *policy.Policy) bool {
 		if p.CContents != nil {
 			for _, content := range p.CContents {
@@ -262,7 +263,7 @@ func pluginFilter(plugin Plugin) policy.PolicyPredicate {
 }
 
 // RegisterPlugin adds the given plugin to this enforcer
-func (e *Enforcer) RegisterPlugin(plugin Plugin) bool {
+func (e *Enforcer) RegisterPlugin(plugin plugins.Plugin) bool {
 	id := plugin.ID()
 	log.Printf("Registering plugin %v...", id)
 	if p, registered := e.RegisteredPlugins[id]; registered {
@@ -277,7 +278,7 @@ func (e *Enforcer) RegisterPlugin(plugin Plugin) bool {
 }
 
 // UnregisterPlugin removes the given plugin from this enforcer
-func (e *Enforcer) UnregisterPlugin(plugin Plugin) bool {
+func (e *Enforcer) UnregisterPlugin(plugin plugins.Plugin) bool {
 	id := plugin.ID()
 	log.Printf("Unregistering plugin %v...", id)
 
