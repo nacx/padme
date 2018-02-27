@@ -32,12 +32,12 @@ package main
 import (
         "fmt"
 
-        "github.com/padmeio/padme/enforcer/plugins"
+        "github.com/padmeio/padme/enforcer/plugins/native"
 )
 
 func main() {
         // Initialize the plugin loader
-	loader := &plugins.NativePluginLoader{
+	loader := &native.PluginLoader{
 		PluginDir: "/opt/padme/plugins",
 	}
 

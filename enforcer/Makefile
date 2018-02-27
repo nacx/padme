@@ -12,7 +12,7 @@ DEPS := $(foreach dep,$(DEPENDENCIES),$(GOPATH)/src/$(dep))
 CMD_PATH := cmd
 
 
-all: build test vet lint
+all: build vet lint test
 
 build: $(DEPS)
 	cd $(CMD_PATH) && go build -v -o $(BINARY)

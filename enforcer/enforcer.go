@@ -272,8 +272,12 @@ func (e *Enforcer) RegisterPlugin(plugin plugins.Plugin) bool {
 	}
 
 	log.Printf("Applying policies to plugin %v...", id)
+
 	e.RegisteredPlugins[id] = &loadedPlugin{plugin, false}
-	e.Enable(id)
+	if enabled := e.Enable(id); !enabled {
+		log.Printf("Error enabling plugin %v after registering", id)
+	}
+
 	return true
 }
 

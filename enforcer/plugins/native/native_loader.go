@@ -14,18 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package plugins
+// Package native provides a Go native plugin loader.
+//
+// Native Go plugins are only supported in Go 1.8+ and in Linux platforms.
+package native
 
 import (
 	"fmt"
 	"log"
 	"plugin"
 	"strings"
+
+	"github.com/padmeio/padme/enforcer/plugins"
 )
 
-// NativePluginLoader uses the plugin mechanism introduced in Go 1.8 to laod
+// PluginLoader uses the plugin mechanism introduced in Go 1.8 to laod
 // compiled plugins from a given directory.
-type NativePluginLoader struct {
+type PluginLoader struct {
 
 	// PluginDir is the directory where plugins will be loaded from
 	PluginDir string
@@ -37,7 +42,7 @@ type NativePluginLoader struct {
 //	- Be present in the configured 'PluginDir/name.so' (plugin name in lowercase)
 //	- Must export a variable named 'Name' (the capitalized name of the plugin) of
 //	  type 'enforcer.Plugin'
-func (l *NativePluginLoader) Load(id string) (Plugin, error) {
+func (l *PluginLoader) Load(id string) (plugins.Plugin, error) {
 	pluginPath := fmt.Sprintf("%v/%v.so", l.PluginDir, id)
 	p, err := plugin.Open(pluginPath)
 	if err != nil {
@@ -53,7 +58,7 @@ func (l *NativePluginLoader) Load(id string) (Plugin, error) {
 		return nil, err
 	}
 
-	loadedPlugin, ok := obj.(Plugin)
+	loadedPlugin, ok := obj.(plugins.Plugin)
 	if !ok {
 		return nil, fmt.Errorf("Unexpexted type %T of plugin %v. Expected 'enforcer.Plugin'",
 			obj, pluginExportedName)
@@ -63,6 +68,6 @@ func (l *NativePluginLoader) Load(id string) (Plugin, error) {
 
 // Unload releases the resources used by a plugin. In Go 1.8, closing an open
 // plugin is still not supported, so this method does nothing.
-func (l *NativePluginLoader) Unload(id string) error {
+func (l *PluginLoader) Unload(id string) error {
 	return nil
 }
