@@ -22,12 +22,12 @@ limitations under the License.
 package enforcer
 
 import (
-	"fmt"
 	"log"
 	"time"
 
 	"github.com/padmeio/padme/enforcer/plugins"
 	"github.com/padmeio/padme/enforcer/store"
+	"github.com/padmeio/padme/enforcer/utils"
 	"github.com/padmeio/padme/policy"
 )
 
@@ -41,6 +41,11 @@ type loadedPlugin struct {
 
 // Enforcer is the main implementation of a PADME Enforcer.
 type Enforcer struct {
+
+	// Location configures the location where teh current enforcer operates.
+	// This field will be used when matching policies and only the policies that
+	// apply to this location will be considered.
+	Location *policy.Location
 
 	// Store configures the repository where the policies for this enforcer
 	// are stored.
@@ -56,14 +61,32 @@ type Enforcer struct {
 	// RegisteredPlugins are the list of plugins this enforcer will delegate to when
 	// checking policies for an incoming resource
 	RegisteredPlugins map[string]*loadedPlugin
+
+	// resource is the representation of this Enforcer as a PADME Policy resource.
+	// This will be used in the Request Level Answer API to match policies that
+	// target this enforcer
+	resource *policy.Resource
 }
 
 // NewEnforcer builds a new Enforcer object with the given policy repository
-func NewEnforcer(store store.PolicyRepository) Enforcer {
+func NewEnforcer(store store.PolicyRepository, location *policy.Location, credentials *policy.Credential) Enforcer {
+	localAddresses, err := utils.LocalAddresses()
+	if err != nil {
+		log.Fatalf("error reading local addresses: %v", err)
+	}
+
+	var resource *policy.Resource
+	resource, err = utils.AddressesToResource(localAddresses, credentials)
+	if err != nil {
+		log.Fatalf("error building enforcer resource: %v", err)
+	}
+
 	return Enforcer{
+		Location:          location,
 		Store:             store,
 		Handlers:          make(map[string]PolicyEventHandler),
 		RegisteredPlugins: make(map[string]*loadedPlugin),
+		resource:          resource,
 	}
 }
 
@@ -77,31 +100,14 @@ func (e *Enforcer) Answer(properties []*policy.Rule, credential *policy.Credenti
 		return false
 	}
 
-	resource, err := assemble(properties, credential)
+	resource, err := utils.NewResource(properties, credential)
 	if err != nil {
 		log.Printf("Error assembling the request into a Policy Resource: %v", err)
 		return false
 	}
 
-	// TODO nacx: Proper target from this enforcer data, and location from config
-	valid, accept, allow := bundle.Match(resource, nil, time.Now(), nil /*location*/)
+	valid, accept, allow := bundle.Match(resource, e.resource, time.Now(), e.Location)
 	return valid && (!accept || allow)
-}
-
-// assemble takes a set of Rules and credentials and builds a Resource object to be
-// evaluated against existing policies.
-func assemble(properties []*policy.Rule, credential *policy.Credential) (*policy.Resource, error) {
-	resource := &policy.Resource{IdentifiedBy: credential}
-	if len(properties) == 0 {
-		return nil, fmt.Errorf("at least one property must be defined")
-	}
-	ruleset := &policy.RuleSet{OOperator: policy.NONE, RRule: properties[0]}
-	// TODO nacx: Test when there is just one element
-	for _, rule := range properties[1:] {
-		ruleset = ruleset.And(&policy.RuleSet{OOperator: policy.NONE, RRule: rule})
-	}
-	resource.Name = ruleset
-	return resource, nil
 }
 
 // Implementation of the Controller API
@@ -196,7 +202,7 @@ func (e *Enforcer) Enable(pluginID string) bool {
 
 	log.Printf("Enabling plugin %v...", pluginID)
 
-	for _, p := range bundle.Filter(pluginFilter(plugin)) {
+	for _, p := range bundle.Filter(utils.PluginFilter(plugin)) {
 		log.Printf("Applying policy: %v...", p.Description)
 		for _, content := range p.CContents {
 			if content.PluginID == plugin.ID() {
@@ -232,7 +238,7 @@ func (e *Enforcer) Disable(pluginID string) bool {
 
 	log.Printf("Disabling plugin %v...", pluginID)
 
-	for _, p := range bundle.Filter(pluginFilter(plugin)) {
+	for _, p := range bundle.Filter(utils.PluginFilter(plugin)) {
 		for _, content := range p.CContents {
 			if content.PluginID == plugin.ID() {
 				log.Printf("Removing policy: %v...", p.Description)
@@ -246,21 +252,6 @@ func (e *Enforcer) Disable(pluginID string) bool {
 }
 
 // Implementation of the Plugin API
-
-// pluginFilter returns a predicate that can be used to filter policies
-// that apply to the given plugin
-func pluginFilter(plugin plugins.Plugin) policy.PolicyPredicate {
-	return func(p *policy.Policy) bool {
-		if p.CContents != nil {
-			for _, content := range p.CContents {
-				if content.PluginID == plugin.ID() {
-					return true
-				}
-			}
-		}
-		return false
-	}
-}
 
 // RegisterPlugin adds the given plugin to this enforcer
 func (e *Enforcer) RegisterPlugin(plugin plugins.Plugin) bool {

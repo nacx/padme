@@ -29,16 +29,21 @@ import (
 	"github.com/padmeio/padme/enforcer"
 	"github.com/padmeio/padme/enforcer/cmd/controllers"
 	store "github.com/padmeio/padme/enforcer/store/filesystem"
+	"github.com/padmeio/padme/policy"
 )
 
 func main() {
-	var policyRepositoryFile, serverAddr string
+	var policyRepositoryFile, location, serverAddr string
 	flag.StringVar(&policyRepositoryFile, "policy-repo", "/opt/padme/padme-policies.json", "Policy repository file")
+	flag.StringVar(&location, "location", "PADME", "Enforcer location")
 	flag.StringVar(&serverAddr, "addr", ":8000", "Server address")
 	flag.Parse()
 
+	// TODO nacx: Proper credentials for request level api proper matching?
+	credentials := &policy.Credential{Name: "PADME", Value: "PADME"}
+
 	store := &store.LocalPolicyRepository{FilePath: policyRepositoryFile}
-	enforcer := enforcer.NewEnforcer(store)
+	enforcer := enforcer.NewEnforcer(store, &policy.Location{Name: location}, credentials)
 
 	router := mux.NewRouter()
 	controllers.Init(&enforcer)

@@ -1,16 +1,17 @@
 # Dummy Enforcer Plugin
 
 This is a dummy plugin just to demonstrate the Go native plugin loading mechanism.
-Dynamic loading of plugins using the Golang `plugins` is currently only supported in Linux.
+Dynamic loading of plugins using the Golang `plugins` is currently only supported
+Go +1.8 and Linux systems.
 
-In order to compile the plugin, it must be build as follows:
+In order to compile the plugin, it must be built as follows:
 
 ```bash
 go build -buildmode=plugin -o dummy.so
 ```
 
-To use the plugin in a PADME Enforcer, just configure the enforcer to use a `NativePluginLoader` configured to
-use the plugin directory that contains the compiled file.
+The plugin can be loaded into a PADME Enforcer by using a `NativePluginLoader`
+configured to use the plugin directory that contains the compiled file.
 
 ## Example
 

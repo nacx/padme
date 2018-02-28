@@ -37,6 +37,9 @@ var (
 	pluginPolicies = len(bundle.Filter(func(p *policy.Policy) bool {
 		return p.CContents != nil && len(p.CContents) > 0
 	}))
+
+	credentials = &policy.Credential{Name: "PADME", Value: "PADME"}
+	location    = &policy.Location{Name: "PADME"}
 )
 
 // lastEvent is a PolicyEventHandler that keeps track of the last fired event
@@ -87,14 +90,14 @@ func loadTestPolicy(path string) *policy.PolicyBundle {
 
 func TestFetchOnFailure(t *testing.T) {
 	st := store.LocalPolicyRepository{FilePath: "/dev/null"}
-	invalid := NewEnforcer(&st)
+	invalid := NewEnforcer(&st, location, credentials)
 	if bundle := invalid.Fetch(); bundle != nil {
 		t.Fatal("Expected fetch to have failed on an invalid enforcer storage")
 	}
 }
 
 func TestApplyAndFetch(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
 	}
@@ -105,7 +108,7 @@ func TestApplyAndFetch(t *testing.T) {
 }
 
 func TestApplyNotifiesHandlers(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	h := &lastEvent{}
 	e.RegisterHandler("h", h)
 
@@ -124,7 +127,7 @@ func TestApplyNotifiesHandlers(t *testing.T) {
 func TestApplyFailureNotifiesHandlers(t *testing.T) {
 	// invalidStore to force a failure in Apply()
 	invalidStore := store.LocalPolicyRepository{FilePath: "/unexisting/path.json"}
-	e := NewEnforcer(&invalidStore)
+	e := NewEnforcer(&invalidStore, location, credentials)
 	h := &lastEvent{}
 	e.RegisterHandler("h", h)
 
@@ -141,7 +144,7 @@ func TestApplyFailureNotifiesHandlers(t *testing.T) {
 }
 
 func TestRegisterHandler(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	handler := lastEvent{}
 	if registered := e.RegisterHandler("h", &handler); !registered {
 		t.Fatal("Expected handler to be registered")
@@ -163,7 +166,7 @@ func TestRegisterHandler(t *testing.T) {
 }
 
 func TestPlugins(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if l := len(e.Plugins()); l != 0 {
 		t.Fatalf("Expected plugins to be empty, but found: %v", l)
 	}
@@ -181,14 +184,14 @@ func TestPlugins(t *testing.T) {
 }
 
 func TestEnableNonRegisteredPlugin(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if enabled := e.Enable("unexisting"); enabled {
 		t.Fatal("Plugin is not registered but has been enabled")
 	}
 }
 
 func TestEnableAlreadyEnabledPlugin(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	plugin := testPlugin{id: "test_plugin", appliedPolicies: 0}
 	e.RegisteredPlugins[plugin.ID()] = &loadedPlugin{&plugin, true}
 
@@ -198,7 +201,7 @@ func TestEnableAlreadyEnabledPlugin(t *testing.T) {
 }
 
 func TestEnablePlugin(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
 	}
@@ -216,7 +219,7 @@ func TestEnablePlugin(t *testing.T) {
 }
 
 func TestEnablePluginWhenNoPluginSpecificPolicies(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
 	}
@@ -236,7 +239,7 @@ func TestEnablePluginWhenNoPluginSpecificPolicies(t *testing.T) {
 func TestEnablePluginNoPoliciesInEnforcer(t *testing.T) {
 	// invalidStore to force a failure in Fetch()
 	invalidStore := store.LocalPolicyRepository{FilePath: "/dev/null"}
-	e := NewEnforcer(&invalidStore)
+	e := NewEnforcer(&invalidStore, location, credentials)
 
 	plugin := testPlugin{id: "no_policies", appliedPolicies: 5}
 	e.RegisteredPlugins[plugin.ID()] = &loadedPlugin{&plugin, false}
@@ -247,14 +250,14 @@ func TestEnablePluginNoPoliciesInEnforcer(t *testing.T) {
 }
 
 func TestDisableNonRegisteredPlugin(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if disabled := e.Disable("unexisting"); disabled {
 		t.Fatal("Plugin is not registered but has been disabled")
 	}
 }
 
 func TestDisableAlreadyDisabledPlugin(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	plugin := testPlugin{id: "test_plugin", appliedPolicies: 0}
 	e.RegisteredPlugins[plugin.ID()] = &loadedPlugin{&plugin, false}
 
@@ -264,7 +267,7 @@ func TestDisableAlreadyDisabledPlugin(t *testing.T) {
 }
 
 func TestDisablePlugin(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
 	}
@@ -283,7 +286,7 @@ func TestDisablePlugin(t *testing.T) {
 }
 
 func TestDisablePluginWhenNoPluginSpecificPolicies(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
 	}
@@ -304,7 +307,7 @@ func TestDisablePluginWhenNoPluginSpecificPolicies(t *testing.T) {
 func TestDisablePluginNoPoliciesInEnforcer(t *testing.T) {
 	// invalidStore to force a failure in Fetch()
 	invalidStore := store.LocalPolicyRepository{FilePath: "/dev/null"}
-	e := NewEnforcer(&invalidStore)
+	e := NewEnforcer(&invalidStore, location, credentials)
 
 	plugin := testPlugin{id: "no_policies", appliedPolicies: 5}
 	e.RegisteredPlugins[plugin.ID()] = &loadedPlugin{&plugin, true}
@@ -317,7 +320,7 @@ func TestDisablePluginNoPoliciesInEnforcer(t *testing.T) {
 // Plugin API tests
 
 func TestRegisterPlugin(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
 	}
@@ -333,7 +336,7 @@ func TestRegisterPlugin(t *testing.T) {
 }
 
 func TestRegisterDuplicatedPlugin(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
 	}
@@ -347,7 +350,7 @@ func TestRegisterDuplicatedPlugin(t *testing.T) {
 }
 
 func TestRegisterPluginWithoutPolicies(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
 	}
@@ -363,7 +366,7 @@ func TestRegisterPluginWithoutPolicies(t *testing.T) {
 }
 
 func TestUnregisterPlugin(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
 	}
@@ -380,7 +383,7 @@ func TestUnregisterPlugin(t *testing.T) {
 }
 
 func TestUnregisterPluginWithoutPolicies(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if ok := e.Apply(bundle); !ok {
 		t.Fatal("Expected policy to be applied to the enforcer")
 	}
@@ -397,7 +400,7 @@ func TestUnregisterPluginWithoutPolicies(t *testing.T) {
 }
 
 func TestUnregisterUnexistingPlugin(t *testing.T) {
-	e := NewEnforcer(&testStore)
+	e := NewEnforcer(&testStore, location, credentials)
 	if unregistered := e.UnregisterPlugin(&testPlugin{id: "unexisting"}); unregistered {
 		t.Fatal("Expected the plugin to not be unregistered")
 	}
