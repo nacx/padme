@@ -29,7 +29,7 @@ import (
 
 var (
 	testFile  = fmt.Sprintf("%v/src/github.com/padmeio/padme/policy/test_policy.json", os.Getenv("GOPATH"))
-	bundle    = loadTestPolicy(testFile)
+	bundle    = loadTestPolicyFile(testFile)
 	testStore = store.LocalPolicyRepository{FilePath: "/tmp/padme-enforcer.json"}
 
 	// List of all policies and all policies that define plugin data
@@ -73,16 +73,19 @@ func (p *testPlugin) Remove(id string) (bool, string) {
 	return true, ""
 }
 
-func loadTestPolicy(path string) *policy.PolicyBundle {
+func loadTestPolicyFile(path string) *policy.PolicyBundle {
 	bytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		panic(fmt.Sprintf("Unable to read test policy file: %v", err))
 	}
+	return loadTestPolicy(bytes)
+}
+
+func loadTestPolicy(jsonPolicy []byte) *policy.PolicyBundle {
 	bundle := &policy.PolicyBundle{}
-	if err = json.Unmarshal(bytes, bundle); err != nil {
+	if err := json.Unmarshal(jsonPolicy, bundle); err != nil {
 		panic(fmt.Sprintf("Unable to deserialize PolicyBundle: %v", err))
 	}
-
 	return bundle
 }
 
@@ -403,5 +406,388 @@ func TestUnregisterUnexistingPlugin(t *testing.T) {
 	e := NewEnforcer(&testStore, location, credentials)
 	if unregistered := e.UnregisterPlugin(&testPlugin{id: "unexisting"}); unregistered {
 		t.Fatal("Expected the plugin to not be unregistered")
+	}
+}
+
+// Request Level Answer API tests
+
+// matchingPolicy configures the target with the Enforcer's IP address, location and credentials  so it can accept
+// the request and allows access to a web service
+var matchingPolicy = `
+{
+  "format_version": 1,
+  "policy_version": 2,
+  "description": "Matching bundle",
+  "policies": [
+    {
+      "uuid": "46489674-5a07-40f9-9a43-7a7d08fa307e",
+      "format_version": 0,
+      "policy_version": 0,
+      "description": "",
+      "target": {
+        "rules": {
+          "op": "AND",
+          "left": {
+            "op": "AND",
+            "left": { "op": "NONE", "rule": { "layer": "network", "layer_type": "ip", "pattern": "destIp=127.0.0.1" } },
+            "right": { "op": "NONE", "rule": { "layer": "network", "layer_type": "tcp", "pattern": "destPort=80" } }
+          },
+          "right": { "op": "NONE", "rule": { "layer": "service", "layer_type": "www", "pattern": "service=/home" } }
+        },
+        "identified_by": { "name": "PADME", "value": "PADME" }
+      },
+      "allowed": [
+        {
+          "rules": {
+            "op": "AND",
+            "left": { "op": "NONE", "rule": { "layer": "network", "layer_type": "ip", "pattern": "srcIp=192.168.0.5" } },
+            "right": { "op": "NONE", "rule": { "layer": "service", "layer_type": "www", "pattern": "service=/home" } } 
+           },
+          "identified_by": { "name": "PADME", "value": "PADME" }
+        }
+      ],
+      "disallowed": [  ],
+      "timeline": { "start": "0000-01-01T00:00:00Z", "end": "3000-01-01T00:00:00Z" },
+      "rate": 0,
+      "location": { "name": "PADME" },
+      "contents": [ ],
+      "signature": ""
+    }
+  ]
+}`
+
+func TestAnswerOKForMatchingPolicy(t *testing.T) {
+	e := NewEnforcer(&testStore, location, credentials)
+	testPolicy := loadTestPolicy([]byte(matchingPolicy))
+	if ok := e.Apply(testPolicy); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
+	request := []*policy.Rule{
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "srcIp=192.168.0.5"},
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "destIp=10.0.0.2"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "srcPort=5431"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "destPort=80"},
+		&policy.Rule{Layer: "service", LType: "www", Pattern: "service=/home"},
+	}
+
+	if !e.Answer(request, credentials) {
+		t.Fatalf("Expected policy %v to have allowed the request %v", testPolicy, request)
+	}
+}
+
+func TestAnswerNOKForInvalidCredentials(t *testing.T) {
+	e := NewEnforcer(&testStore, location, credentials)
+	testPolicy := loadTestPolicy([]byte(matchingPolicy))
+	if ok := e.Apply(testPolicy); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
+	request := []*policy.Rule{
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "srcIp=192.168.0.5"},
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "destIp=10.0.0.2"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "srcPort=5431"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "destPort=80"},
+		&policy.Rule{Layer: "service", LType: "www", Pattern: "service=/home"},
+	}
+
+	if e.Answer(request, &policy.Credential{Name: "PADME", Value: "Other"}) {
+		t.Fatalf("Expected policy %v to have rejected the request %v", testPolicy, request)
+	}
+}
+
+// invalidPolicy configures a matching policy but in an already expired timeframe so the enforcer
+// cannot consider it
+var invalidPolicy = `
+{
+  "format_version": 1,
+  "policy_version": 2,
+  "description": "Matching bundle",
+  "policies": [
+    {
+      "uuid": "46489674-5a07-40f9-9a43-7a7d08fa307e",
+      "format_version": 0,
+      "policy_version": 0,
+      "description": "",
+      "target": {
+        "rules": {
+          "op": "AND",
+          "left": {
+            "op": "AND",
+            "left": { "op": "NONE", "rule": { "layer": "network", "layer_type": "ip", "pattern": "destIp=127.0.0.1" } },
+            "right": { "op": "NONE", "rule": { "layer": "network", "layer_type": "tcp", "pattern": "destPort=80" } }
+          },
+          "right": { "op": "NONE", "rule": { "layer": "service", "layer_type": "www", "pattern": "service=/home" } }
+        },
+        "identified_by": { "name": "PADME", "value": "PADME" }
+      },
+      "allowed": [
+        {
+          "rules": {
+            "op": "AND",
+            "left": { "op": "NONE", "rule": { "layer": "network", "layer_type": "ip", "pattern": "srcIp=192.168.0.5" } },
+            "right": { "op": "NONE", "rule": { "layer": "service", "layer_type": "www", "pattern": "service=/home" } } 
+           },
+          "identified_by": { "name": "PADME", "value": "PADME" }
+        }
+      ],
+      "disallowed": [  ],
+      "timeline": { "start": "0000-01-01T00:00:00Z", "end": "0000-01-02T00:00:00Z" },
+      "rate": 0,
+      "location": { "name": "PADME" },
+      "contents": [ ],
+      "signature": ""
+    }
+  ]
+}`
+
+func TestAnswerNOKForInvalidPolicy(t *testing.T) {
+	e := NewEnforcer(&testStore, location, credentials)
+	testPolicy := loadTestPolicy([]byte(invalidPolicy))
+	if ok := e.Apply(testPolicy); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
+	request := []*policy.Rule{
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "srcIp=192.168.0.5"},
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "destIp=10.0.0.2"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "srcPort=5431"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "destPort=80"},
+		&policy.Rule{Layer: "service", LType: "www", Pattern: "service=/home"},
+	}
+
+	if e.Answer(request, credentials) {
+		t.Fatalf("Expected policy %v to have rejected the request %v", testPolicy, request)
+	}
+}
+
+// notAcceptedLocationPolicy configures a policy that is not accepted for being configured to a different location
+var notAcceptedLocationPolicy = `
+{
+  "format_version": 1,
+  "policy_version": 2,
+  "description": "Matching bundle",
+  "policies": [
+    {
+      "uuid": "46489674-5a07-40f9-9a43-7a7d08fa307e",
+      "format_version": 0,
+      "policy_version": 0,
+      "description": "",
+      "target": {
+        "rules": {
+          "op": "AND",
+          "left": {
+            "op": "AND",
+            "left": { "op": "NONE", "rule": { "layer": "network", "layer_type": "ip", "pattern": "destIp=127.0.0.1" } },
+            "right": { "op": "NONE", "rule": { "layer": "network", "layer_type": "tcp", "pattern": "destPort=80" } }
+          },
+          "right": { "op": "NONE", "rule": { "layer": "service", "layer_type": "www", "pattern": "service=/home" } }
+        },
+        "identified_by": { "name": "PADME", "value": "PADME" }
+      },
+      "allowed": [  ],
+      "disallowed": [  ],
+      "timeline": { "start": "0000-01-01T00:00:00Z", "end": "3000-01-01T00:00:00Z" },
+      "rate": 0,
+      "location": { "name": "somewhere else" },
+      "contents": [ ],
+      "signature": ""
+    }
+  ]
+}`
+
+func TestAnswerOKForNotAcceptedLocationPolicy(t *testing.T) {
+	e := NewEnforcer(&testStore, location, credentials)
+	testPolicy := loadTestPolicy([]byte(notAcceptedLocationPolicy))
+	if ok := e.Apply(testPolicy); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
+	request := []*policy.Rule{
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "srcIp=192.168.0.5"},
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "destIp=10.0.0.2"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "srcPort=5431"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "destPort=80"},
+		&policy.Rule{Layer: "service", LType: "www", Pattern: "service=/home"},
+	}
+
+	if !e.Answer(request, credentials) {
+		t.Fatalf("Expected policy %v to have accepted the request %v", testPolicy, request)
+	}
+}
+
+// notAcceptedTargetPolicy configures a policy that is not accepted for being configured for a different target
+var notAcceptedTargetPolicy = `
+{
+  "format_version": 1,
+  "policy_version": 2,
+  "description": "Matching bundle",
+  "policies": [
+    {
+      "uuid": "46489674-5a07-40f9-9a43-7a7d08fa307e",
+      "format_version": 0,
+      "policy_version": 0,
+      "description": "",
+      "target": {
+        "rules": {
+          "op": "AND",
+          "left": {
+            "op": "AND",
+            "left": { "op": "NONE", "rule": { "layer": "network", "layer_type": "ip", "pattern": "destIp=80.80.80.80" } },
+            "right": { "op": "NONE", "rule": { "layer": "network", "layer_type": "tcp", "pattern": "destPort=80" } }
+          },
+          "right": { "op": "NONE", "rule": { "layer": "service", "layer_type": "www", "pattern": "service=/home" } }
+        },
+        "identified_by": { "name": "PADME", "value": "PADME" }
+      },
+      "allowed": [  ],
+      "disallowed": [  ],
+      "timeline": { "start": "0000-01-01T00:00:00Z", "end": "3000-01-01T00:00:00Z" },
+      "rate": 0,
+      "location": { "name": "PADME" },
+      "contents": [ ],
+      "signature": ""
+    }
+  ]
+}`
+
+func TestAnswerOKForNotAcceptedTargetPolicy(t *testing.T) {
+	e := NewEnforcer(&testStore, location, credentials)
+	testPolicy := loadTestPolicy([]byte(notAcceptedTargetPolicy))
+	if ok := e.Apply(testPolicy); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
+	request := []*policy.Rule{
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "srcIp=192.168.0.5"},
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "destIp=10.0.0.2"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "srcPort=5431"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "destPort=80"},
+		&policy.Rule{Layer: "service", LType: "www", Pattern: "service=/home"},
+	}
+
+	if !e.Answer(request, credentials) {
+		t.Fatalf("Expected policy %v to have accepted the request %v", testPolicy, request)
+	}
+}
+
+// notAllowedPolicy configures a policy that this enforcer would reject for not explicitly defining
+// the allowed resource list
+var notAllowedPolicy = `
+{
+  "format_version": 1,
+  "policy_version": 2,
+  "description": "Matching bundle",
+  "policies": [
+    {
+      "uuid": "46489674-5a07-40f9-9a43-7a7d08fa307e",
+      "format_version": 0,
+      "policy_version": 0,
+      "description": "",
+      "target": {
+        "rules": {
+          "op": "AND",
+          "left": {
+            "op": "AND",
+            "left": { "op": "NONE", "rule": { "layer": "network", "layer_type": "ip", "pattern": "destIp=127.0.0.1" } },
+            "right": { "op": "NONE", "rule": { "layer": "network", "layer_type": "tcp", "pattern": "destPort=80" } }
+          },
+          "right": { "op": "NONE", "rule": { "layer": "service", "layer_type": "www", "pattern": "service=/home" } }
+        },
+        "identified_by": { "name": "PADME", "value": "PADME" }
+      },
+      "allowed": [  ],
+      "disallowed": [  ],
+      "timeline": { "start": "0000-01-01T00:00:00Z", "end": "3000-01-01T00:00:00Z" },
+      "rate": 0,
+      "location": { "name": "PADME" },
+      "contents": [ ],
+      "signature": ""
+    }
+  ]
+}`
+
+func TestAnswerOKForNotAcceptedEnforcerCredentials(t *testing.T) {
+	e := NewEnforcer(&testStore, location, &policy.Credential{Name: "PADME", Value: "Other"})
+	testPolicy := loadTestPolicy([]byte(notAllowedPolicy))
+	if ok := e.Apply(testPolicy); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
+	request := []*policy.Rule{
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "srcIp=192.168.0.5"},
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "destIp=10.0.0.2"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "srcPort=5431"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "destPort=80"},
+		&policy.Rule{Layer: "service", LType: "www", Pattern: "service=/home"},
+	}
+
+	if !e.Answer(request, credentials) {
+		t.Fatalf("Expected policy %v to have accepted the request %v", testPolicy, request)
+	}
+}
+
+// acceptednotAllowedPolicy configures a valid policy for this enforcer that does not allow access to the
+// requested web service (it allows a different source ip address)
+var acceptedNotAllowedPolicy = `
+{
+  "format_version": 1,
+  "policy_version": 2,
+  "description": "Matching bundle",
+  "policies": [
+    {
+      "uuid": "46489674-5a07-40f9-9a43-7a7d08fa307e",
+      "format_version": 0,
+      "policy_version": 0,
+      "description": "",
+      "target": {
+        "rules": {
+          "op": "AND",
+          "left": {
+            "op": "AND",
+            "left": { "op": "NONE", "rule": { "layer": "network", "layer_type": "ip", "pattern": "destIp=127.0.0.1" } },
+            "right": { "op": "NONE", "rule": { "layer": "network", "layer_type": "tcp", "pattern": "destPort=80" } }
+          },
+          "right": { "op": "NONE", "rule": { "layer": "service", "layer_type": "www", "pattern": "service=/home" } }
+        },
+        "identified_by": { "name": "PADME", "value": "PADME" }
+      },
+      "allowed": [
+        {
+          "rules": {
+            "op": "AND",
+            "left": { "op": "NONE", "rule": { "layer": "network", "layer_type": "ip", "pattern": "srcIp=192.168.0.7" } },
+            "right": { "op": "NONE", "rule": { "layer": "service", "layer_type": "www", "pattern": "service=/home" } } 
+           },
+          "identified_by": { "name": "PADME", "value": "PADME" }
+        }
+      ],
+      "disallowed": [  ],
+      "timeline": { "start": "0000-01-01T00:00:00Z", "end": "3000-01-01T00:00:00Z" },
+      "rate": 0,
+      "location": { "name": "PADME" },
+      "contents": [ ],
+      "signature": ""
+    }
+  ]
+}`
+
+func TestAnswerNOKForNotAllowedPolicy(t *testing.T) {
+	e := NewEnforcer(&testStore, location, credentials)
+	testPolicy := loadTestPolicy([]byte(acceptedNotAllowedPolicy))
+	if ok := e.Apply(testPolicy); !ok {
+		t.Fatal("Expected policy to be applied to the enforcer")
+	}
+
+	request := []*policy.Rule{
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "srcIp=192.168.0.5"},
+		&policy.Rule{Layer: "network", LType: "ip", Pattern: "destIp=10.0.0.2"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "srcPort=5431"},
+		&policy.Rule{Layer: "network", LType: "tcp", Pattern: "destPort=80"},
+		&policy.Rule{Layer: "service", LType: "www", Pattern: "service=/home"},
+	}
+
+	if e.Answer(request, credentials) {
+		t.Fatalf("Expected policy %v to have rejected the request %v", testPolicy, request)
 	}
 }

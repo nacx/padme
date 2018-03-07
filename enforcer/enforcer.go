@@ -107,6 +107,7 @@ func (e *Enforcer) Answer(properties []*policy.Rule, credential *policy.Credenti
 	}
 
 	valid, accept, allow := bundle.Match(resource, e.resource, time.Now(), e.Location)
+	log.Printf("Request resolved as: valid=%v,accepted=%v,allowed=%v", valid, accept, allow)
 	return valid && (!accept || allow)
 }
 
